@@ -49,7 +49,8 @@ Nenhum endereço tem valor padrão.
 |---|---|
 | `POST /mcp` | MCP sem sessão (2026-07-28 e 2025-11-25); exige Bearer do MCP; 60 chamadas/min por grant |
 | `GET /.well-known/oauth-protected-resource/mcp` | metadados do recurso (RFC 9728) |
-| `/.well-known/oauth-authorization-server`, `/oauth/*` | servidor de autorização (P3); 30 req/min por IP em `/oauth/*` |
+| `/.well-known/oauth-authorization-server`, `/oauth/authorize`, `/oauth/token`, `/oauth/revoke`, `/oauth/jwks` | servidor de autorização (`oidc-provider`, só CIMD da lista fechada, sem DCR); 30 req/min por IP em `/oauth/*` |
+| `GET /oauth/interacao/:uid`, `GET /oauth/keycloak/callback`, `POST /oauth/interacao/:uid/decisao` | login no IdP (`max_age=300`) e tela de consentimento, sempre |
 | `GET /readyz` | só o processo (rotas montadas, chaves carregadas); nunca depende da V2 |
 | `GET /healthz` | vivo; `?detalhe=1` testa a V2 e o IdP (503 se algum falhar) |
 | `GET /metrics` | Prometheus (não exposta na borda) |
@@ -64,6 +65,7 @@ interface.
 | `src/config.ts`, `src/log.ts`, `src/limites.ts`, `src/servidor.ts`, `src/iniciar.ts`, `src/principal.ts` | esqueleto | P2 |
 | `src/oauth/tipos.ts` | contrato `ServidorAutorizacao` e `ExtraDoToken` (o que o verificador põe em `AuthInfo.extra`) | P2 → P3 |
 | `src/oauth/*` | servidor de autorização (`oidc-provider`, CIMD, adaptador da V2, Keycloak, consentimento, revogador) | P3 |
+| `src/oauth/cifra.ts`, `src/oauth/keycloak.ts` (`renovar`), `src/oauth/armazem-v2.ts` (`lerGrant`, `revogarGrant`) | o que o P4 reaproveita para o token da V2 por grant | P3 → P4 |
 | `src/v2/tipos.ts` | contrato `ClienteV2`, `PedidoV2`, `ErroV2` | P2 → P4 |
 | `src/v2/contrato.ts`, `contrato/operacoes-v2.json` | manifesto das operações da V2 e drift | P2 → P4 |
 | `src/v2/cliente.ts` | cliente HTTP da V2 (token por grant, escopo efetivo, erros) | P4 |
@@ -71,8 +73,21 @@ interface.
 | `src/mcp/*` (envelope, máscara, plano, cursor, auditoria) e `src/ferramentas/<dominio>.ts` | ferramentas | P5 |
 | `src/demo/` | V2 falsa (fixtures em `fixtures.ts`) e IdP falso | P2; P4/P5 acrescentam fixtures |
 
-Para ligar as peças novas, P3 troca `servidorAutorizacaoPendente()` e P4 troca `clienteV2Pendente()` em
-`src/iniciar.ts` (uma linha cada). P5 acrescenta os domínios em `src/ferramentas/index.ts`.
+Para ligar as peças novas, P4 troca `clienteV2Pendente()` em `src/iniciar.ts` (o servidor de autorização já está
+ligado). P5 acrescenta os domínios em `src/ferramentas/index.ts`.
+
+### Servidor de autorização (resumo)
+
+- Toda autorização passa pelo IdP e pela tela de consentimento: a `Session` do `oidc-provider` não é gravada, e a
+  interação só termina com login e consentimento juntos, depois da aprovação. O cliente pede o escopo mínimo do PRM; a
+  tela mostra o conjunto que os papéis `MCP_*` da pessoa liberam, e o grant fica só com ele.
+- O refresh offline do IdP é cifrado no callback (AES-256-GCM, `MCP_UPSTREAM_KEY`, AAD = `uid` da interação) e
+  recifrado com AAD = `grant_id` na aprovação. Nunca fica em claro no armazém da V2.
+- Token do MCP: JWT ES256 de 10 min com `grant_id`; refresh opaco rotativo de 30 dias; grant de 90 dias. Refresh
+  reapresentado em menos de 30 s recebe `invalid_grant` sem revogar; depois disso revoga o grant (`refresh_reuse`),
+  incrementa `mcp_refresh_reuse_total` e registra `oauth.reuso_detectado`.
+- `/mcp` confere o grant na V2 com cache de 30 s por pod; o varredor (a cada 5 min) revoga no IdP o offline de grants
+  revogados ou vencidos e de interações abandonadas.
 
 Regras que valem para todos:
 

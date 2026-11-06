@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { carregarManifesto, type OperacaoV2 } from '../v2/contrato.js';
+import { type ArmazemOauthFalso, criarArmazemOauthFalso } from './armazem-oauth-falso.js';
 import { FIXTURES, type Fixture } from './fixtures.js';
 
 export type ChamadaRegistrada = {
@@ -16,6 +17,8 @@ export type ChamadaRegistrada = {
 export type V2Falsa = {
   url: string;
   chamadas: ChamadaRegistrada[];
+  /** Armazém OAuth interno (`/v2/internal/mcp/oauth/**`), fora do manifesto. */
+  oauth: ArmazemOauthFalso;
   /** Troca ou acrescenta a resposta de uma operação (testes). */
   definir(operacao: string, fixture: Fixture): void;
   fechar(): Promise<void>;
@@ -37,10 +40,11 @@ function compilar(op: OperacaoV2): Rota {
  * Imita o IdempotencyService da V2 nas operações com chave obrigatória: mesma chave e mesmo corpo → replay;
  * corpo diferente → 422; pedido igual ainda em andamento → 409.
  */
-export async function iniciarV2Falsa(porta = 0): Promise<V2Falsa> {
+export async function iniciarV2Falsa(porta = 0, agora: () => number = Date.now): Promise<V2Falsa> {
   const rotas = carregarManifesto().operations.map(compilar);
   const fixtures = new Map(Object.entries(FIXTURES));
   const chamadas: ChamadaRegistrada[] = [];
+  const oauth = criarArmazemOauthFalso(agora);
   const idempotencia = new Map<string, { hash: string; resposta?: { status: number; corpo: unknown } }>();
 
   const servidor = http.createServer(async (req, res) => {
@@ -51,6 +55,7 @@ export async function iniciarV2Falsa(porta = 0): Promise<V2Falsa> {
     const url = new URL(req.url ?? '/', 'http://v2-falsa');
     if (url.pathname === '/v2/health/ready') return responder(200, { status: 'UP' });
     if (!/^Bearer \S+$/.test(req.headers.authorization ?? '')) return responder(401, { title: 'Unauthorized' });
+    if (url.pathname.startsWith('/v2/internal/mcp/oauth/')) return oauth.tratar(req, res, url.pathname.slice(23));
 
     const rota = rotas.find((r) => r.op.method === req.method && r.regex.test(url.pathname));
     if (!rota) return responder(404, { title: 'Not Found', code: 'rota_fora_do_manifesto' });
@@ -98,6 +103,7 @@ export async function iniciarV2Falsa(porta = 0): Promise<V2Falsa> {
   return {
     url: `http://127.0.0.1:${port}`,
     chamadas,
+    oauth,
     definir: (op, f) => {
       fixtures.set(op, f);
     },
