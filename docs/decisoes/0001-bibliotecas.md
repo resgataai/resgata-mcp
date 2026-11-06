@@ -7,7 +7,6 @@ Data: 06/11/2026. Estado: **aceita**. Plano B e plano C do servidor de autoriza�
 | Pacote | Versão (exata, travada no `bun.lock`) | Papel |
 |---|---|---|
 | `@modelcontextprotocol/server` | 2.4.0 | servidor MCP sem sessão (`createMcpHandler`) |
-| `@modelcontextprotocol/express` | 2.0.2 | `requireBearerAuth` (401 com `resource_metadata`) |
 | `express` | 5.3.0 | HTTP |
 | `oidc-provider` | 9.13.3 | servidor de autorização (CIMD, PKCE, rotação de refresh) |
 | `openid-client` | 6.8.9 | login no IdP da Resgata |
@@ -15,6 +14,9 @@ Data: 06/11/2026. Estado: **aceita**. Plano B e plano C do servidor de autoriza�
 | `zod` | 4.6.7 | configuração e schemas das ferramentas |
 | `pino` | 10.4.0 | log |
 | `prom-client` | 15.1.3 | métricas |
+
+`@modelcontextprotocol/express` 2.0.2 (`requireBearerAuth`) saiu na integração: o 401 com `resource_metadata` e o
+escopo mínimo é montado com `verifyBearerToken` e `bearerAuthChallengeResponse` do `@modelcontextprotocol/server`.
 
 Desenvolvimento: `typescript` 6.0.3, `vitest` 5.0.5, `@biomejs/biome` 2.6.3, `@types/node` 22.20.5,
 `@modelcontextprotocol/client` 2.4.0 (só testes). Ferramentas de desenvolvimento ficaram em versões com pelo menos

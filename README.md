@@ -6,9 +6,9 @@ partir do **Claude** (Claude.ai, Claude Desktop, app móvel e Claude Code) e do 
 O login usa a mesma conta do painel administrativo da Resgata.ai, por OAuth.
 
 > **Estado em 06/11/2026: em construção.** O servidor **ainda não está no ar**, nenhuma ferramenta funciona hoje e o
-> MCP **não pode ser instalado ainda**. Este repositório tem, por enquanto, a apresentação, a política de segurança, o
-> guia de instalação para quando houver liberação e o catálogo planejado. O código entra
-> com o primeiro incremento. Quando algo for liberado, este aviso e o [catálogo](CATALOGO.md) dizem exatamente o quê.
+> MCP **não pode ser instalado ainda**. O código do primeiro incremento já roda no modo demonstração, com dados
+> sintéticos, na sua máquina ([INSTALAR.md](INSTALAR.md) seção 8). Quando algo for liberado, este aviso e o
+> [catálogo](CATALOGO.md) dizem exatamente o quê.
 
 ## O que já existe e o que é planejado
 
@@ -16,13 +16,13 @@ O login usa a mesma conta do painel administrativo da Resgata.ai, por OAuth.
 |---|---|
 | Plataforma por trás (API da Resgata, painel, atendimento, campanhas, cobrança) | Em produção. O MCP não cria regras novas: usa as que já existem. |
 | Endereço do servidor (`https://mcp.resgata.ai/mcp`) | Planejado. Ainda não responde. |
-| Login OAuth com a conta do painel | Planejado para o incremento 1. |
-| Consultas (clientes, propostas, jornada, indicadores, campanhas, atendimento, saúde das integrações) | Planejado para o incremento 1. |
-| Envio de e-mail por modelo a um cliente, com prévia | Planejado para o incremento 1. |
+| Login OAuth com a conta do painel | Incremento 1: pronto no modo demonstração, aguarda liberação. |
+| Consultas (clientes, propostas, jornada, indicadores, campanhas, atendimento, saúde das integrações) | Incremento 1: pronto no modo demonstração, aguarda liberação. |
+| Envio de e-mail por modelo a um cliente, com prévia | Incremento 1: pronto no modo demonstração (envio simulado), aguarda liberação. |
 | "Chame o cliente X e fale Y" por WhatsApp, SMS e e-mail; pedir à Agente Rê para retomar um atendimento | Planejado para o incremento 2. |
 | Campanhas, cobrança, acompanhamentos ("acompanhe por 3 dias"), rotinas e alertas | Planejado para o incremento 3. |
 | Diagnóstico de provedores e por CPF, custos por anúncio, relatórios, CRM, voz | Planejado para o incremento 4. |
-| Modo demonstração com dados sintéticos, para testar sem conta | Planejado para o incremento 1. |
+| Modo demonstração com dados sintéticos, para testar sem conta | Disponível: `bun run dev:demo` ([INSTALAR.md](INSTALAR.md) seção 8). |
 
 ## Ordem de entrega
 

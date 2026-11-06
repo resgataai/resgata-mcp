@@ -5,8 +5,9 @@
 > falhar na hora do login e nenhum acesso está sendo concedido. O aviso sai daqui quando o servidor entrar no ar.
 
 Comandos e menus conferidos em 06/11/2026 nas documentações oficiais e na ajuda local (`--help`) do Claude Code 2.1.319
-e do Codex CLI 0.162.1. Ainda **não** foram testados contra o servidor, que não existe; o teste ponta a ponta acontece
-no aceite e este guia será atualizado com o resultado. Fontes no fim da página.
+e do Codex CLI 0.162.1. O servidor já passa, no modo demonstração (seção 8), pelo fluxo completo de login, autorização,
+renovação e ferramentas em testes automatizados; os comandos abaixo com os clientes reais ainda **não** foram testados
+contra ele. Esse teste acontece no aceite e este guia será atualizado com o resultado. Fontes no fim da página.
 
 ## 1. Antes de começar
 
@@ -179,8 +180,7 @@ Quando um administrador bloqueia uma conta, muda o perfil, redefine a senha ou e
 autorizações daquela pessoa são revogadas em até 30 segundos. Se a mudança for feita direto no provedor de identidade,
 o efeito chega em até 5 minutos.
 
-A autorização vale até 30 dias sem uso e no máximo 90 dias (valores propostos, a confirmar). Depois disso, o cliente
-pede o login de novo.
+A autorização vale até 30 dias sem uso e no máximo 90 dias. Depois disso, o cliente pede o login de novo.
 
 ## 7. Solução de problemas
 
@@ -205,8 +205,24 @@ aparecer). **Nunca envie senha, token ou print com dados de clientes.**
 
 ## 8. Testar sem conta (modo demonstração)
 
-Planejado para o incremento 1: rodar o servidor na sua máquina com dados 100% sintéticos e envios simulados, sem
-nenhuma credencial (`bun run dev:demo`). As instruções entram aqui junto com o código.
+Roda o servidor na sua máquina com dados 100% sintéticos, envios simulados e um login de demonstração que entra sozinho
+com um usuário fictício. Não usa nenhuma credencial e se recusa a subir se encontrar variáveis de produção. A única
+busca externa é a dos documentos públicos de identificação do Claude e do Codex, feita quando um cliente conecta.
+
+Requisito: Bun 1.3.12 ou mais novo.
+
+```bash
+git clone https://github.com/resgataai/resgata-mcp.git && cd resgata-mcp
+bun install --frozen-lockfile --ignore-scripts
+bun run dev:demo
+```
+
+O servidor fica em `http://localhost:8080/mcp` (outra porta: `PORT=8090 bun run dev:demo`). Para conferir que está no
+ar, abra `http://localhost:8080/.well-known/oauth-protected-resource/mcp`.
+
+Os testes automatizados (`bun run test`) fazem, contra o modo demonstração, o caminho completo de um cliente: login,
+tela de autorização, token, lista de ferramentas, chamadas, renovação e dois usuários em paralelo. Conectar o Claude
+Code ou o Codex ao endereço local ainda será conferido no aceite.
 
 ## Fontes
 
