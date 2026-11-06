@@ -16,9 +16,12 @@ export type PedidoV2 = {
   idempotencyKey?: string;
   /** `X-Audit-Reason` das mutações (`mcp:<ferramenta>:<grant_id>:<request_id>`). */
   motivoAuditoria?: string;
+  /** Escopos MCP exigidos; o cliente confere contra o escopo efetivo recalculado no token novo. */
+  escopos?: readonly string[];
 };
 
-export type RespostaV2<T = unknown> = { status: number; dados: T; requestId: string };
+/** `dados` já sem o envelope `ApiResponse` da V2; `replay` = a V2 devolveu a resposta guardada da mesma chave. */
+export type RespostaV2<T = unknown> = { status: number; dados: T; requestId: string; replay: boolean };
 
 /** Erro acionável, já no vocabulário do envelope (DESENHO §7.2). */
 export type CodigoErroV2 =
@@ -37,7 +40,13 @@ export class ErroV2 extends Error {
   constructor(
     readonly codigo: CodigoErroV2,
     mensagem: string,
-    readonly detalhes: { status?: number; tentarNovamenteEmS?: number; gate?: string; requestId?: string } = {},
+    readonly detalhes: {
+      status?: number;
+      tentarNovamenteEmS?: number;
+      gate?: string;
+      requestId?: string;
+      escopos?: readonly string[];
+    } = {},
   ) {
     super(mensagem);
   }
@@ -45,4 +54,9 @@ export class ErroV2 extends Error {
 
 export interface ClienteV2 {
   chamar<T = unknown>(pedido: PedidoV2): Promise<RespostaV2<T>>;
+  /**
+   * Escopo efetivo do grant = escopos do grant ∩ papéis do token da V2, recalculado a cada token novo (≤ 300 s).
+   * Sem `MCP_ACCESS` o grant é revogado e lança `reautenticar`.
+   */
+  escoposEfetivos(grantId: string): Promise<ReadonlySet<string>>;
 }

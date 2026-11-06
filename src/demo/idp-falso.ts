@@ -198,7 +198,7 @@ export async function iniciarIdpFalso(opcoes: { redirectMcp?: string; porta?: nu
           const r = refreshes.get(antigo);
           const u = r ? usuarios.get(r.sub) : undefined;
           if (!r || r.clientId !== cliente.clientId || !u?.ativo) return json(400, { error: 'invalid_grant' });
-          refreshes.delete(antigo);
+          // Como o realm (revokeRefreshToken=false): o refresh offline continua valendo depois de usado.
           return json(200, await emitir(u, cliente.clientId, r.scope));
         }
         return json(400, { error: 'unsupported_grant_type' });

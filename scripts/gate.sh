@@ -16,6 +16,8 @@ passo "tipos (tsc)"
 bun run tipos
 passo "testes (vitest)"
 bun run test
+passo "catálogo de ferramentas × manifesto"
+bun run catalogo:check
 passo "drift contra a OpenAPI da V2 (recorte versionado)"
 bun run drift:v2
 printf '\ngate ok\n'
