@@ -97,6 +97,23 @@ const diagnostico = definir({
     const j = args.de || args.ate ? janela(args.de, args.ate, 1, ctx.agora()) : undefined;
     const eventos = timeline.filter((e) => {
       if (e.kind !== 'PROVIDER' && e.kind !== 'INTEGRATION') return false;
+      const p = obj(e.rawPayload);
+      const temErro =
+        typeof p.error === 'string'
+          ? Boolean(p.error.trim())
+          : p.error != null &&
+            p.error !== false &&
+            p.error !== 0 &&
+            (typeof p.error !== 'object' || Object.keys(p.error).length > 0);
+      const temChamada =
+        Boolean(str(p.operation)?.trim() || str(e.operationName)?.trim()) || Object.keys(obj(p.transport)).length > 0;
+      if (
+        !temChamada &&
+        !Object.hasOwn(obj(p.response), 'body') &&
+        !temErro &&
+        !/[._]failed$/.test(String(e.eventType))
+      )
+        return false;
       if (args.evento_uuid && e.eventUuid !== args.evento_uuid) return false;
       if (args.provedor && String(e.source ?? '').toLowerCase() !== args.provedor.toLowerCase()) return false;
       if (
@@ -141,7 +158,7 @@ const diagnostico = definir({
         duracao_ms: num(t.durationMs),
         tentativas: num(t.attempts),
         classificacao_registrada: str(erro.outcome),
-        erro_registrado: Object.keys(erro).length ? sanitizarTecnico(erro) : null,
+        erro_registrado: p.error == null ? null : sanitizarTecnico(p.error),
         resposta_presente: Object.hasOwn(resposta, 'body'),
         conteudo_externo_nao_confiavel: true,
         resposta_registrada: Object.hasOwn(resposta, 'body') ? sanitizarTecnico(resposta.body) : null,

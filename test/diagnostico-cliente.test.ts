@@ -28,6 +28,41 @@ const RESPOSTA = {
   details: { requiredMonths: 6, currentMonths: 3 },
 };
 
+it('ignora sincronização de contato sem chamada e preserva erro legado em texto', async () => {
+  amb = await subirTecnico();
+  amb.v2.definir('lookup', () => ({
+    status: 200,
+    corpo: {
+      user: { userUuid: CLIENTE_1 },
+      timeline: [
+        {
+          kind: 'INTEGRATION',
+          source: 'CRM_DEMO',
+          eventType: 'contact_updated',
+          eventUuid: EVENTO,
+          rawPayload: { contactId: 7, error: false },
+        },
+        {
+          kind: 'PROVIDER',
+          source: 'PROVEDOR_DEMO',
+          eventType: 'simulation.failed',
+          eventUuid: '00000000-0000-4000-9000-000000000444',
+          rawPayload: { error: 'Vínculo sem margem disponível' },
+        },
+      ],
+    },
+  }));
+  const c = await amb.mcp(await amb.conectar('demo-usuario-1', ESCOPO_TECNICO));
+  const r = await c.callTool({ name: 'diagnostico_cpf', arguments: { userUuid: CLIENTE_1 } });
+  expect(r.isError).toBeFalsy();
+  expect(r.structuredContent).toMatchObject({
+    pagina: {
+      total: 1,
+      itens: [{ tipo_evento: 'simulation.failed', erro_registrado: 'Vínculo sem margem disponível' }],
+    },
+  });
+});
+
 it('diagnóstico por CPF preserva a resposta registrada e correlação, sem credenciais ou requisição', async () => {
   amb = await subirTecnico();
   amb.v2.definir('lookup', () => ({
