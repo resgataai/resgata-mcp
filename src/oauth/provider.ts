@@ -125,7 +125,7 @@ export function criarServidorAutorizacao(o: OpcoesServidorAutorizacao): Servidor
     },
     findAccount: async (_ctx: unknown, sub: string) => ({ accountId: sub, claims: async () => ({ sub }) }),
     extraTokenClaims: async (_ctx: unknown, token: { grantId?: string }) => ({ grant_id: token.grantId }),
-    interactions: { url: async (_ctx: unknown, i: { uid: string }) => `/interacao/${i.uid}` },
+    interactions: { url: async (_ctx: unknown, i: { uid: string }) => `/oauth/interacao/${i.uid}` },
     fetch: criarBuscaCimd(o.buscaCimd),
     renderError: async (ctx: { type: string; body: string }, saida: { error?: string }) => {
       ctx.type = 'html';
@@ -194,7 +194,7 @@ export function criarServidorAutorizacao(o: OpcoesServidorAutorizacao): Servidor
     '/.well-known/oauth-authorization-server',
     '/.well-known/openid-configuration',
   ];
-  rotas.use([...rotasDoProvider, '/oauth/keycloak/callback', '/interacao'], (req, _res, next) => {
+  rotas.use([...rotasDoProvider, '/oauth/keycloak/callback', '/oauth/interacao'], (req, _res, next) => {
     req.headers['x-forwarded-host'] = origem.host;
     req.headers['x-forwarded-proto'] = origem.protocol.slice(0, -1);
     next();

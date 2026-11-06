@@ -50,7 +50,7 @@ Nenhum endereço tem valor padrão.
 | `POST /mcp` | MCP sem sessão (2026-07-28 e 2025-11-25); exige Bearer do MCP; 60 chamadas/min por grant |
 | `GET /.well-known/oauth-protected-resource/mcp` | metadados do recurso (RFC 9728) |
 | `/.well-known/oauth-authorization-server`, `/oauth/authorize`, `/oauth/token`, `/oauth/revoke`, `/oauth/jwks` | servidor de autorização (`oidc-provider`, só CIMD da lista fechada, sem DCR); 30 req/min por IP em `/oauth/*` |
-| `GET /interacao/:uid`, `GET /oauth/keycloak/callback`, `POST /interacao/:uid/decisao` | login no IdP (`max_age=300`) e tela de consentimento, sempre |
+| `GET /oauth/interacao/:uid`, `GET /oauth/keycloak/callback`, `POST /oauth/interacao/:uid/decisao` | login no IdP (`max_age=300`) e tela de consentimento, sempre |
 | `GET /readyz` | só o processo (rotas montadas, chaves carregadas); nunca depende da V2 |
 | `GET /healthz` | vivo; `?detalhe=1` testa a V2 e o IdP (503 se algum falhar) |
 | `GET /metrics` | Prometheus (não exposta na borda) |

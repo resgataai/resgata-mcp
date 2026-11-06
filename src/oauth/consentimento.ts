@@ -65,7 +65,7 @@ export function paginaConsentimento(d: DadosConsentimento): string {
       `${d.email ? `<br>Sua conta: <strong>${esc(d.email)}</strong>` : ''}</p>${local}${corpo}` +
       '<p class="mudo">Validade: até 90 dias, e termina antes se ficar 30 dias sem uso. Você pode desconectar a ' +
       'qualquer momento em Perfil → Integrações de IA, no painel.</p>' +
-      `<form method="post" action="/interacao/${esc(d.uid)}/decisao"><input type="hidden" name="csrf" value="${esc(d.csrf)}">` +
+      `<form method="post" action="/oauth/interacao/${esc(d.uid)}/decisao"><input type="hidden" name="csrf" value="${esc(d.csrf)}">` +
       `<div class="botoes">${d.escopos.length ? '<button name="decisao" value="aprovar">Aprovar</button>' : ''}` +
       '<button name="decisao" value="recusar">Recusar</button></div></form>',
   );

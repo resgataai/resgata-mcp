@@ -84,7 +84,7 @@ export function rotasInteracao(d: DependenciasInteracao): Router {
     }
   }
 
-  r.get('/interacao/:uid', async (req, res, next) => {
+  r.get('/oauth/interacao/:uid', async (req, res, next) => {
     try {
       const det = await detalhes(req, res);
       if (!det) return expirou(res);
@@ -180,7 +180,7 @@ export function rotasInteracao(d: DependenciasInteracao): Router {
         },
       } satisfies Resultado;
       await salvar(det);
-      res.redirect(303, `/interacao/${uid}`);
+      res.redirect(303, `/oauth/interacao/${uid}`);
     } catch (e) {
       next(e);
     }
@@ -192,66 +192,70 @@ export function rotasInteracao(d: DependenciasInteracao): Router {
     res.redirect(303, det.returnTo);
   }
 
-  r.post('/interacao/:uid/decisao', express.urlencoded({ extended: false, limit: '4kb' }), async (req, res, next) => {
-    try {
-      const det = await detalhes(req, res);
-      const idp = (det?.result as Resultado | undefined)?.idp;
-      if (!det || !idp) return expirou(res);
-      const corpo = (req.body ?? {}) as Record<string, unknown>;
-      if (!igual(corpo.csrf, idp.csrf))
-        return aviso(res, 403, 'Pedido inválido', 'Recarregue a página e tente de novo.');
+  r.post(
+    '/oauth/interacao/:uid/decisao',
+    express.urlencoded({ extended: false, limit: '4kb' }),
+    async (req, res, next) => {
+      try {
+        const det = await detalhes(req, res);
+        const idp = (det?.result as Resultado | undefined)?.idp;
+        if (!det || !idp) return expirou(res);
+        const corpo = (req.body ?? {}) as Record<string, unknown>;
+        if (!igual(corpo.csrf, idp.csrf))
+          return aviso(res, 403, 'Pedido inválido', 'Recarregue a página e tente de novo.');
 
-      // Uma decisão por interação, mesmo com dois cliques ou duas réplicas: o consumo na V2 é atômico.
-      if ((await d.armazem.consumir('Interaction', hashId(det.uid))) !== 'ok') return expirou(res);
+        // Uma decisão por interação, mesmo com dois cliques ou duas réplicas: o consumo na V2 é atômico.
+        if ((await d.armazem.consumir('Interaction', hashId(det.uid))) !== 'ok') return expirou(res);
 
-      const clientId = det.params.client_id ?? '';
-      const pedidos = (det.params.scope ?? '').split(' ').filter(Boolean);
-      const efetivos = escoposDosPapeis(idp.papeis).filter((e) => pedidos.includes(e));
-      const liberado: ReadonlySet<string> = new Set(efetivos);
-      if (corpo.decisao !== 'aprovar' || efetivos.length === 0) {
-        await revogarOffline(decifrar(d.chaveUpstream, Buffer.from(idp.upstream, 'base64'), det.uid));
-        d.evento('recusado', { client_id: clientId });
-        return d.provider.interactionFinished(
+        const clientId = det.params.client_id ?? '';
+        const pedidos = (det.params.scope ?? '').split(' ').filter(Boolean);
+        const efetivos = escoposDosPapeis(idp.papeis).filter((e) => pedidos.includes(e));
+        const liberado: ReadonlySet<string> = new Set(efetivos);
+        if (corpo.decisao !== 'aprovar' || efetivos.length === 0) {
+          await revogarOffline(decifrar(d.chaveUpstream, Buffer.from(idp.upstream, 'base64'), det.uid));
+          d.evento('recusado', { client_id: clientId });
+          return d.provider.interactionFinished(
+            req,
+            res,
+            { error: 'access_denied', error_description: 'autorização recusada' },
+            { mergeWithLastSubmission: false },
+          );
+        }
+
+        // Escopo efetivo = pedido ∩ papéis MCP_*; o resto é recusado explicitamente para o provider não pedir de novo.
+        const grant = new d.provider.Grant({ accountId: idp.sub, clientId });
+        const oidc = pedidos.filter((s) => s === 'openid' || liberado.has(s));
+        const recusadosOidc = pedidos.filter((s) => !oidc.includes(s));
+        if (oidc.length) grant.addOIDCScope(oidc.join(' '));
+        if (recusadosOidc.length) grant.rejectOIDCScope(recusadosOidc.join(' '));
+        grant.addResourceScope(d.recurso, efetivos.join(' '));
+        const recusados = pedidos.filter((s) => ESCOPO_MCP.has(s) && !liberado.has(s));
+        if (recusados.length) grant.rejectResourceScope(d.recurso, recusados.join(' '));
+        const grantId = await grant.save();
+
+        const offline = decifrar(d.chaveUpstream, Buffer.from(idp.upstream, 'base64'), det.uid);
+        await d.armazem.gravarGrant(grantId, {
+          userSub: idp.sub,
+          userEmail: idp.email,
+          clientId,
+          clientName: nomeDoCliente(clientId) ?? 'Aplicativo',
+          scopes: efetivos,
+          expiresAt: new Date(d.agora() + VIDA_GRANT_S * 1000).toISOString(),
+          upstreamCiphertext: cifrar(d.chaveUpstream, offline, grantId).toString('base64'),
+        });
+        d.evento('grant_criado', { grant_id: grantId, client_id: clientId });
+        // O resultado novo substitui o anterior: o refresh cifrado com AAD = uid sai da interação aqui.
+        await d.provider.interactionFinished(
           req,
           res,
-          { error: 'access_denied', error_description: 'autorização recusada' },
+          { login: { accountId: idp.sub, ts: idp.authTime, remember: false }, consent: { grantId } },
           { mergeWithLastSubmission: false },
         );
+      } catch (e) {
+        next(e);
       }
-
-      // Escopo efetivo = pedido ∩ papéis MCP_*; o resto é recusado explicitamente para o provider não pedir de novo.
-      const grant = new d.provider.Grant({ accountId: idp.sub, clientId });
-      const oidc = pedidos.filter((s) => s === 'openid' || liberado.has(s));
-      const recusadosOidc = pedidos.filter((s) => !oidc.includes(s));
-      if (oidc.length) grant.addOIDCScope(oidc.join(' '));
-      if (recusadosOidc.length) grant.rejectOIDCScope(recusadosOidc.join(' '));
-      grant.addResourceScope(d.recurso, efetivos.join(' '));
-      const recusados = pedidos.filter((s) => ESCOPO_MCP.has(s) && !liberado.has(s));
-      if (recusados.length) grant.rejectResourceScope(d.recurso, recusados.join(' '));
-      const grantId = await grant.save();
-
-      const offline = decifrar(d.chaveUpstream, Buffer.from(idp.upstream, 'base64'), det.uid);
-      await d.armazem.gravarGrant(grantId, {
-        userSub: idp.sub,
-        userEmail: idp.email,
-        clientId,
-        clientName: nomeDoCliente(clientId) ?? 'Aplicativo',
-        scopes: efetivos,
-        expiresAt: new Date(d.agora() + VIDA_GRANT_S * 1000).toISOString(),
-        upstreamCiphertext: cifrar(d.chaveUpstream, offline, grantId).toString('base64'),
-      });
-      d.evento('grant_criado', { grant_id: grantId, client_id: clientId });
-      // O resultado novo substitui o anterior: o refresh cifrado com AAD = uid sai da interação aqui.
-      await d.provider.interactionFinished(
-        req,
-        res,
-        { login: { accountId: idp.sub, ts: idp.authTime, remember: false }, consent: { grantId } },
-        { mergeWithLastSubmission: false },
-      );
-    } catch (e) {
-      next(e);
-    }
-  });
+    },
+  );
 
   return r;
 }
