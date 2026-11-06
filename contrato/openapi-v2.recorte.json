@@ -1,0 +1,349 @@
+[
+  {
+    "operationId": "adminAdsSpend",
+    "method": "GET",
+    "path": "/v2/admin/analytics/ads-spend",
+    "params": [
+      "from",
+      "to"
+    ]
+  },
+  {
+    "operationId": "adminAudiencesDetail",
+    "method": "GET",
+    "path": "/v2/admin/audiences/{id}",
+    "params": [
+      "id"
+    ]
+  },
+  {
+    "operationId": "adminAudiencesList",
+    "method": "GET",
+    "path": "/v2/admin/audiences",
+    "params": [
+      "cursor",
+      "includeArchived",
+      "kind",
+      "limit",
+      "q"
+    ]
+  },
+  {
+    "operationId": "adminCampaignEconomics",
+    "method": "GET",
+    "path": "/v2/admin/campaigns/{id}/economics",
+    "params": [
+      "companyUuid",
+      "from",
+      "id",
+      "to"
+    ]
+  },
+  {
+    "operationId": "adminCampaignsAttempts",
+    "method": "GET",
+    "path": "/v2/admin/campaigns/{id}/attempts",
+    "params": [
+      "cursor",
+      "id",
+      "limit",
+      "recipientId",
+      "status"
+    ]
+  },
+  {
+    "operationId": "adminCampaignsGet",
+    "method": "GET",
+    "path": "/v2/admin/campaigns/{id}",
+    "params": [
+      "id"
+    ]
+  },
+  {
+    "operationId": "adminCampaignsList",
+    "method": "GET",
+    "path": "/v2/admin/campaigns",
+    "params": [
+      "channel",
+      "cursor",
+      "ids",
+      "limit",
+      "page",
+      "pageSize",
+      "q",
+      "scheduledFrom",
+      "scheduledTo",
+      "status"
+    ]
+  },
+  {
+    "operationId": "adminCampaignsRejections",
+    "method": "GET",
+    "path": "/v2/admin/campaigns/{id}/rejections",
+    "params": [
+      "code",
+      "cursor",
+      "id",
+      "limit"
+    ]
+  },
+  {
+    "operationId": "adminCampaignsResults",
+    "method": "GET",
+    "path": "/v2/admin/campaigns/{id}/results",
+    "params": [
+      "id"
+    ]
+  },
+  {
+    "operationId": "adminChannelUnitCosts",
+    "method": "GET",
+    "path": "/v2/admin/economics/unit-costs",
+    "params": []
+  },
+  {
+    "operationId": "adminConversionBottlenecks",
+    "method": "GET",
+    "path": "/v2/admin/analytics/conversion-bottlenecks",
+    "params": [
+      "from",
+      "to"
+    ]
+  },
+  {
+    "operationId": "adminIndividualSend",
+    "method": "POST",
+    "path": "/v2/admin/individual-sends",
+    "params": [
+      "Idempotency-Key"
+    ]
+  },
+  {
+    "operationId": "adminIndividualSendTemplates",
+    "method": "GET",
+    "path": "/v2/admin/individual-sends/templates",
+    "params": [
+      "channel"
+    ]
+  },
+  {
+    "operationId": "adminTemplateTestGet",
+    "method": "GET",
+    "path": "/v2/admin/templates/tests/{id}",
+    "params": [
+      "id"
+    ]
+  },
+  {
+    "operationId": "channelEconomicsScreen",
+    "method": "GET",
+    "path": "/v2/admin/economics/channels",
+    "params": [
+      "channels",
+      "companyUuid",
+      "from",
+      "to"
+    ]
+  },
+  {
+    "operationId": "chatwootAttentionCounts",
+    "method": "GET",
+    "path": "/v2/admin/chatwoot/attention-counts",
+    "params": []
+  },
+  {
+    "operationId": "conversionOverview",
+    "method": "GET",
+    "path": "/v2/admin/analytics/conversion-overview",
+    "params": [
+      "fromMonth",
+      "toMonth"
+    ]
+  },
+  {
+    "operationId": "dashboard_1",
+    "method": "GET",
+    "path": "/v2/admin/analytics/conversion/acquisition",
+    "params": [
+      "asOf",
+      "campaignKey",
+      "cohort",
+      "from",
+      "inactivityHours",
+      "page",
+      "productCode",
+      "reasonCode",
+      "size",
+      "source",
+      "stage",
+      "status",
+      "to"
+    ]
+  },
+  {
+    "operationId": "dependencyHealth",
+    "method": "GET",
+    "path": "/v2/admin/health/dependencies",
+    "params": [
+      "providerWindowMinutes"
+    ]
+  },
+  {
+    "operationId": "disbursedOffers",
+    "method": "GET",
+    "path": "/v2/admin/analytics/macro/disbursed-offers",
+    "params": [
+      "basis",
+      "from",
+      "to"
+    ]
+  },
+  {
+    "operationId": "facets",
+    "method": "GET",
+    "path": "/v2/admin/proposals/facets",
+    "params": [
+      "basis",
+      "fields",
+      "from",
+      "limitPerField",
+      "to"
+    ]
+  },
+  {
+    "operationId": "get_1",
+    "method": "GET",
+    "path": "/v2/proposals/{uuid}",
+    "params": [
+      "uuid"
+    ]
+  },
+  {
+    "operationId": "getUserRecord",
+    "method": "GET",
+    "path": "/v2/admin/users/{userUuid}/record",
+    "params": [
+      "channel",
+      "conversationsLimit",
+      "cursor",
+      "include",
+      "limit",
+      "source",
+      "userUuid"
+    ]
+  },
+  {
+    "operationId": "health_1",
+    "method": "GET",
+    "path": "/v2/admin/providers/health",
+    "params": [
+      "windowMinutes"
+    ]
+  },
+  {
+    "operationId": "journeyLog",
+    "method": "GET",
+    "path": "/v2/admin/analytics/self-contracting-product-log/journey",
+    "params": [
+      "attemptId",
+      "from",
+      "page",
+      "productCode",
+      "size",
+      "to",
+      "userUuid"
+    ]
+  },
+  {
+    "operationId": "listChatwootConversations",
+    "method": "GET",
+    "path": "/v2/admin/chatwoot/conversations",
+    "params": [
+      "assigneeType",
+      "inboxId",
+      "page",
+      "q",
+      "status"
+    ]
+  },
+  {
+    "operationId": "listChatwootMessages",
+    "method": "GET",
+    "path": "/v2/admin/chatwoot/conversations/{conversationId}/messages",
+    "params": [
+      "before",
+      "conversationId"
+    ]
+  },
+  {
+    "operationId": "listUserCommunications",
+    "method": "GET",
+    "path": "/v2/admin/users/{userUuid}/communications",
+    "params": [
+      "channel",
+      "cursor",
+      "limit",
+      "source",
+      "userUuid"
+    ]
+  },
+  {
+    "operationId": "listUserConversations",
+    "method": "GET",
+    "path": "/v2/admin/users/{userUuid}/conversations",
+    "params": [
+      "limit",
+      "userUuid"
+    ]
+  },
+  {
+    "operationId": "lookup",
+    "method": "POST",
+    "path": "/v2/users/lookup",
+    "params": []
+  },
+  {
+    "operationId": "me",
+    "method": "GET",
+    "path": "/v2/auth/me",
+    "params": []
+  },
+  {
+    "operationId": "proposalsSearch",
+    "method": "POST",
+    "path": "/v2/proposals/search",
+    "params": []
+  },
+  {
+    "operationId": "selfContractingCustomersSearch",
+    "method": "POST",
+    "path": "/v2/admin/analytics/self-contracting-customers/search",
+    "params": []
+  },
+  {
+    "operationId": "timeline",
+    "method": "GET",
+    "path": "/v2/admin/users/{userUuid}/timeline",
+    "params": [
+      "kinds",
+      "page",
+      "since",
+      "size",
+      "userUuid"
+    ]
+  },
+  {
+    "operationId": "todayCockpit",
+    "method": "GET",
+    "path": "/v2/admin/analytics/today-cockpit",
+    "params": [
+      "basis",
+      "bottleneckHours",
+      "compare",
+      "from",
+      "granularity",
+      "pipelineLimit",
+      "to"
+    ]
+  }
+]

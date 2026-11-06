@@ -1,0 +1,225 @@
+{
+  "$comment": "Operações da V2 que o MCP consome no incremento 1 (PLANO §3.2). A V2 mantém uma cópia como allowlist por azp; mudar aqui exige mudar lá.",
+  "version": 1,
+  "operations": [
+    {
+      "operationId": "me",
+      "method": "GET",
+      "path": "/v2/auth/me",
+      "tools": ["resgata_quem_sou"]
+    },
+    {
+      "operationId": "adminMcpToolCallsMine",
+      "method": "GET",
+      "path": "/v2/admin/mcp/tool-calls/mine",
+      "tools": ["auditoria_minhas_acoes"],
+      "pending": true
+    },
+    {
+      "operationId": "lookup",
+      "method": "POST",
+      "path": "/v2/users/lookup",
+      "tools": ["clientes_buscar"]
+    },
+    {
+      "operationId": "getUserRecord",
+      "method": "GET",
+      "path": "/v2/admin/users/{userUuid}/record",
+      "tools": ["cliente_dossie"]
+    },
+    {
+      "operationId": "listUserCommunications",
+      "method": "GET",
+      "path": "/v2/admin/users/{userUuid}/communications",
+      "tools": ["cliente_dossie", "contato_planejar"]
+    },
+    {
+      "operationId": "timeline",
+      "method": "GET",
+      "path": "/v2/admin/users/{userUuid}/timeline",
+      "tools": ["cliente_linha_do_tempo"]
+    },
+    {
+      "operationId": "listUserConversations",
+      "method": "GET",
+      "path": "/v2/admin/users/{userUuid}/conversations",
+      "tools": ["atendimento_conversas", "cliente_jornada"]
+    },
+    {
+      "operationId": "selfContractingCustomersSearch",
+      "method": "POST",
+      "path": "/v2/admin/analytics/self-contracting-customers/search",
+      "tools": ["jornada_listar"]
+    },
+    {
+      "operationId": "journeyLog",
+      "method": "GET",
+      "path": "/v2/admin/analytics/self-contracting-product-log/journey",
+      "tools": ["cliente_jornada"]
+    },
+    {
+      "operationId": "proposalsSearch",
+      "method": "POST",
+      "path": "/v2/proposals/search",
+      "tools": ["propostas_buscar"]
+    },
+    {
+      "operationId": "facets",
+      "method": "GET",
+      "path": "/v2/admin/proposals/facets",
+      "tools": ["propostas_buscar"]
+    },
+    {
+      "operationId": "get_1",
+      "method": "GET",
+      "path": "/v2/proposals/{uuid}",
+      "tools": ["proposta_detalhe"]
+    },
+    {
+      "operationId": "todayCockpit",
+      "method": "GET",
+      "path": "/v2/admin/analytics/today-cockpit",
+      "tools": ["bi_hoje", "bi_desembolsos"]
+    },
+    {
+      "operationId": "conversionOverview",
+      "method": "GET",
+      "path": "/v2/admin/analytics/conversion-overview",
+      "tools": ["bi_conversao"]
+    },
+    {
+      "operationId": "dashboard_1",
+      "method": "GET",
+      "path": "/v2/admin/analytics/conversion/acquisition",
+      "tools": ["bi_conversao"]
+    },
+    {
+      "operationId": "adminConversionBottlenecks",
+      "method": "GET",
+      "path": "/v2/admin/analytics/conversion-bottlenecks",
+      "tools": ["bi_conversao"]
+    },
+    {
+      "operationId": "channelEconomicsScreen",
+      "method": "GET",
+      "path": "/v2/admin/economics/channels",
+      "tools": ["bi_canais_custos"]
+    },
+    {
+      "operationId": "adminChannelUnitCosts",
+      "method": "GET",
+      "path": "/v2/admin/economics/unit-costs",
+      "tools": ["bi_canais_custos"]
+    },
+    {
+      "operationId": "adminAdsSpend",
+      "method": "GET",
+      "path": "/v2/admin/analytics/ads-spend",
+      "tools": ["bi_canais_custos"]
+    },
+    {
+      "operationId": "disbursedOffers",
+      "method": "GET",
+      "path": "/v2/admin/analytics/macro/disbursed-offers",
+      "tools": ["bi_desembolsos"]
+    },
+    {
+      "operationId": "adminAudiencesList",
+      "method": "GET",
+      "path": "/v2/admin/audiences",
+      "tools": ["audiencias_listar"]
+    },
+    {
+      "operationId": "adminAudiencesDetail",
+      "method": "GET",
+      "path": "/v2/admin/audiences/{id}",
+      "tools": ["audiencia_detalhe"]
+    },
+    {
+      "operationId": "adminCampaignsList",
+      "method": "GET",
+      "path": "/v2/admin/campaigns",
+      "tools": ["campanhas_listar"]
+    },
+    {
+      "operationId": "adminCampaignsGet",
+      "method": "GET",
+      "path": "/v2/admin/campaigns/{id}",
+      "tools": ["campanha_resultados"]
+    },
+    {
+      "operationId": "adminCampaignsResults",
+      "method": "GET",
+      "path": "/v2/admin/campaigns/{id}/results",
+      "tools": ["campanha_resultados"]
+    },
+    {
+      "operationId": "adminCampaignsAttempts",
+      "method": "GET",
+      "path": "/v2/admin/campaigns/{id}/attempts",
+      "tools": ["campanha_resultados"]
+    },
+    {
+      "operationId": "adminCampaignsRejections",
+      "method": "GET",
+      "path": "/v2/admin/campaigns/{id}/rejections",
+      "tools": ["campanha_resultados"]
+    },
+    {
+      "operationId": "adminCampaignEconomics",
+      "method": "GET",
+      "path": "/v2/admin/campaigns/{id}/economics",
+      "tools": ["campanha_resultados"]
+    },
+    {
+      "operationId": "adminIndividualSendTemplates",
+      "method": "GET",
+      "path": "/v2/admin/individual-sends/templates",
+      "tools": ["modelos_listar", "contato_planejar"]
+    },
+    {
+      "operationId": "adminIndividualSend",
+      "method": "POST",
+      "path": "/v2/admin/individual-sends",
+      "tools": ["contato_executar"],
+      "idempotencyKey": "required"
+    },
+    {
+      "operationId": "adminTemplateTestGet",
+      "method": "GET",
+      "path": "/v2/admin/templates/tests/{id}",
+      "tools": ["contato_status"]
+    },
+    {
+      "operationId": "listChatwootConversations",
+      "method": "GET",
+      "path": "/v2/admin/chatwoot/conversations",
+      "tools": ["atendimento_conversas"],
+      "forbiddenParams": ["q"]
+    },
+    {
+      "operationId": "listChatwootMessages",
+      "method": "GET",
+      "path": "/v2/admin/chatwoot/conversations/{conversationId}/messages",
+      "tools": ["atendimento_mensagens"]
+    },
+    {
+      "operationId": "chatwootAttentionCounts",
+      "method": "GET",
+      "path": "/v2/admin/chatwoot/attention-counts",
+      "tools": ["atendimento_fila"]
+    },
+    {
+      "operationId": "dependencyHealth",
+      "method": "GET",
+      "path": "/v2/admin/health/dependencies",
+      "tools": ["diagnostico_saude"]
+    },
+    {
+      "operationId": "health_1",
+      "method": "GET",
+      "path": "/v2/admin/providers/health",
+      "tools": ["diagnostico_saude", "diagnostico_provedor"]
+    }
+  ]
+}
