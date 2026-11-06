@@ -23,7 +23,7 @@ describe('regras próprias do .gitleaks.toml', () => {
   it.each([
     ['CPF formatado', j('cpf ', '123', '.456', '.789', '-09')],
     ['CPF sem pontuação', j('cpf ', '1234567', '8909')],
-    ['host interno de cluster', j('v2-api.api', '.svc', '.cluster', '.local')],
+    ['host interno de cluster', j('servico.exemplo', '.svc', '.cluster', '.local')],
     ['host interno do GCP', j('vm-1.c.projeto', '.inter', 'nal')],
     ['IP privado 10/8', j('10', '.20', '.30', '.40')],
     ['IP privado 172.16/12', j('172', '.20', '.1', '.1')],
