@@ -39,6 +39,7 @@ Nenhum endereço tem valor padrão.
 | `MCP_COOKIE_KEYS` | chaves dos cookies da interação, separadas por vírgula |
 | `MCP_UPSTREAM_KEY`, `MCP_PLAN_KEY`, `MCP_CURSOR_KEY`, `MCP_AUDIT_HMAC_KEY` | 32 bytes em base64url cada |
 | `MCP_EFFECTS_ENABLED` | `false` (padrão): ferramentas com efeito externo somem do catálogo |
+| `MCP_TRANSCRIPTS_ENABLED` | `false` (padrão): mensagens de atendimento ficam fora do contexto da IA (`atendimento_mensagens` responde `indisponivel_por_gate`) |
 | `MCP_DISABLED_TOOLS` | nomes de ferramentas desligadas, separados por vírgula |
 | `MCP_TRUST_PROXY_HOPS` | saltos de proxy confiáveis para o IP do cliente (padrão 0) |
 | `PORT`, `LOG_LEVEL` | porta (8080) e nível de log (`info`) |
@@ -65,16 +66,17 @@ interface.
 | `src/config.ts`, `src/log.ts`, `src/limites.ts`, `src/servidor.ts`, `src/iniciar.ts`, `src/principal.ts` | esqueleto | P2 |
 | `src/oauth/tipos.ts` | contrato `ServidorAutorizacao` e `ExtraDoToken` (o que o verificador põe em `AuthInfo.extra`) | P2 → P3 |
 | `src/oauth/*` | servidor de autorização (`oidc-provider`, CIMD, adaptador da V2, Keycloak, consentimento, revogador) | P3 |
-| `src/oauth/cifra.ts`, `src/oauth/keycloak.ts` (`renovar`), `src/oauth/armazem-v2.ts` (`lerGrant`, `revogarGrant`) | o que o P4 reaproveita para o token da V2 por grant | P3 → P4 |
+| `src/oauth/cifra.ts` | único AES-256-GCM do refresh offline (`iv ‖ tag ‖ cifrado`, AAD = `uid` ou `grant_id`): o servidor de autorização cifra, o cliente da V2 decifra | P3 → P4 |
 | `src/v2/tipos.ts` | contrato `ClienteV2`, `PedidoV2`, `ErroV2` | P2 → P4 |
 | `src/v2/contrato.ts`, `contrato/operacoes-v2.json` | manifesto das operações da V2 e drift | P2 → P4 |
-| `src/v2/cliente.ts` | cliente HTTP da V2 (token por grant, escopo efetivo, erros) | P4 |
+| `src/v2/cliente.ts`, `src/v2/servico.ts` | cliente HTTP da V2 (token por grant, escopo efetivo, erros) e credencial de serviço (armazém OAuth e auditoria) | P4 |
 | `src/mcp/ferramenta.ts`, `src/mcp/servidor-mcp.ts`, `src/mcp/escopos.ts` | tipo `Ferramenta`, handler MCP que filtra por escopo | P2 → P5 |
-| `src/mcp/*` (envelope, máscara, plano, cursor, auditoria) e `src/ferramentas/<dominio>.ts` | ferramentas | P5 |
+| `src/mcp/*` (envelope, máscara, plano, cursor, auditoria, portão de escopo, provedores) e `src/ferramentas/<dominio>.ts` | ferramentas | P5 |
 | `src/demo/` | V2 falsa (fixtures em `fixtures.ts`) e IdP falso | P2; P4/P5 acrescentam fixtures |
 
-Para ligar as peças novas, P4 troca `clienteV2Pendente()` em `src/iniciar.ts` (o servidor de autorização já está
-ligado). P5 acrescenta os domínios em `src/ferramentas/index.ts`.
+`src/iniciar.ts` liga o servidor de autorização, o cliente da V2, a auditoria e o portão de escopo (`src/mcp/portao.ts`).
+Ferramenta nova entra no arquivo do seu domínio em `src/ferramentas/` e na lista de `src/ferramentas/index.ts`; o
+`catalogo:check` confere o resto.
 
 ### Servidor de autorização (resumo)
 
@@ -107,9 +109,12 @@ Regras que valem para todos:
 4. `biome check`;
 5. `tsc --noEmit`;
 6. `vitest run`;
-7. `drift:v2` contra o recorte versionado da OpenAPI da V2 (`contrato/openapi-v2.recorte.json`).
+7. `catalogo:check`: toda ferramenta aponta para operações do manifesto e o manifesto aponta de volta; efeito só
+   sobre operação com `Idempotency-Key` obrigatória e anotado como destrutivo; leitura anotada como só leitura;
+   exemplos presentes;
+8. `drift:v2` contra o recorte versionado da OpenAPI da V2 (`contrato/openapi-v2.recorte.json`).
 
-Entram depois: `catalogo:check` (P5) e `@modelcontextprotocol/conformance` (P6).
+Entra depois: `@modelcontextprotocol/conformance` (P6).
 
 O `pre-commit` roda `gitleaks --staged` e os nomes proibidos no conteúdo preparado.
 

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { decodeJwt } from 'jose';
 import { carregarManifesto, type OperacaoV2 } from '../v2/contrato.js';
 import { type ArmazemOauthFalso, criarArmazemOauthFalso } from './armazem-oauth-falso.js';
 import { FIXTURES, type Fixture } from './fixtures.js';
@@ -12,13 +13,18 @@ export type ChamadaRegistrada = {
   consulta: Record<string, string>;
   corpo: unknown;
   idempotencyKey?: string;
+  cabecalhos: Record<string, string>;
 };
 
 export type V2Falsa = {
   url: string;
   chamadas: ChamadaRegistrada[];
-  /** Armazém OAuth interno (`/v2/internal/mcp/oauth/**`), fora do manifesto. */
+  /** Armazém OAuth interno (`/v2/internal/mcp/oauth/**`), fora do manifesto; os testes semeiam `oauth.grants`. */
   oauth: ArmazemOauthFalso;
+  /** Linhas recebidas em `/v2/internal/mcp/audit/tool-calls`. */
+  auditoria: Array<Record<string, unknown>>;
+  /** Simula a auditoria fora do ar (5xx). */
+  auditoriaFalhando: boolean;
   /** Troca ou acrescenta a resposta de uma operação (testes). */
   definir(operacao: string, fixture: Fixture): void;
   fechar(): Promise<void>;
@@ -35,66 +41,127 @@ function compilar(op: OperacaoV2): Rota {
   return { op, regex: new RegExp(`^${padrao}$`), nomes };
 }
 
+/** Claims do Bearer, se for JWT (a V2 falsa não confere assinatura; o IdP falso é quem emite). */
+function claims(autorizacao: string): { azp?: string; scope?: string } {
+  try {
+    return decodeJwt(autorizacao.replace(/^Bearer /, '')) as { azp?: string; scope?: string };
+  } catch {
+    return {};
+  }
+}
+
+const envelope = (status: number, corpo: unknown) =>
+  status < 300
+    ? { success: true, message: 'ok', data: corpo, timestamp: new Date().toISOString() }
+    : corpo && typeof corpo === 'object' && 'success' in corpo
+      ? corpo
+      : { success: false, message: 'erro', ...(corpo as object) };
+
 /**
- * V2 falsa, em memória, com dados 100% sintéticos: responde às operações do manifesto.
- * Imita o IdempotencyService da V2 nas operações com chave obrigatória: mesma chave e mesmo corpo → replay;
- * corpo diferente → 422; pedido igual ainda em andamento → 409.
+ * V2 falsa, em memória, com dados 100% sintéticos: responde às operações do manifesto no envelope `ApiResponse`.
+ * Imita o IdempotencyService da V2 nas operações com chave obrigatória: mesma chave e corpo → replay com
+ * `Idempotent-Replayed: true`; corpo diferente → 409 `idempotency_key_reused`; em andamento → 409
+ * `idempotency_request_in_progress`. Também serve o armazém de grants e a auditoria internos do MCP, só para o
+ * token de serviço; o token do usuário só serve às rotas de negócio.
  */
 export async function iniciarV2Falsa(porta = 0, agora: () => number = Date.now): Promise<V2Falsa> {
   const rotas = carregarManifesto().operations.map(compilar);
   const fixtures = new Map(Object.entries(FIXTURES));
   const chamadas: ChamadaRegistrada[] = [];
   const oauth = criarArmazemOauthFalso(agora);
+  const auditoria: Array<Record<string, unknown>> = [];
   const idempotencia = new Map<string, { hash: string; resposta?: { status: number; corpo: unknown } }>();
+  const estado = { auditoriaFalhando: false };
 
   const servidor = http.createServer(async (req, res) => {
     const responder = (status: number, corpo: unknown, extra: Record<string, string> = {}) => {
       res.writeHead(status, { 'content-type': 'application/json', ...extra });
-      res.end(JSON.stringify(corpo));
+      res.end(JSON.stringify(envelope(status, corpo)));
     };
     const url = new URL(req.url ?? '/', 'http://v2-falsa');
     if (url.pathname === '/v2/health/ready') return responder(200, { status: 'UP' });
-    if (!/^Bearer \S+$/.test(req.headers.authorization ?? '')) return responder(401, { title: 'Unauthorized' });
-    if (url.pathname.startsWith('/v2/internal/mcp/oauth/')) return oauth.tratar(req, res, url.pathname.slice(23));
-
-    const rota = rotas.find((r) => r.op.method === req.method && r.regex.test(url.pathname));
-    if (!rota) return responder(404, { title: 'Not Found', code: 'rota_fora_do_manifesto' });
-
+    const autorizacao = req.headers.authorization ?? '';
+    if (!/^Bearer \S+$/.test(autorizacao)) return responder(401, { message: 'Unauthorized' });
+    const token = claims(autorizacao);
+    // Como a cadeia de serviço da V2: `/v2/internal/mcp/**` só para o client de serviço do MCP, nunca com `%` no caminho.
+    if (url.pathname.startsWith('/v2/internal/')) {
+      if (token.azp !== 'resgata-mcp-svc' || (req.url ?? '').includes('%'))
+        return responder(403, { message: 'Forbidden' });
+      if (url.pathname.startsWith('/v2/internal/mcp/oauth/')) return oauth.tratar(req, res, url.pathname.slice(23));
+    }
     let texto = '';
     for await (const parte of req) texto += parte;
     const corpo = texto ? (JSON.parse(texto) as unknown) : undefined;
+
+    if (url.pathname.startsWith('/v2/internal/')) {
+      if (url.pathname === '/v2/internal/mcp/audit/tool-calls' && req.method === 'POST') {
+        if (
+          !String(token.scope ?? '')
+            .split(' ')
+            .includes('mcp:audit')
+        )
+          return responder(403, { message: 'Forbidden' });
+        if (estado.auditoriaFalhando) return responder(503, { message: 'indisponível' });
+        const linha = (corpo ?? {}) as Record<string, unknown>;
+        // Como McpToolCallAuditService: o grant (revogado também vale) tem de ser desse userSub.
+        if (oauth.grants.get(String(linha.grantId))?.userSub !== linha.userSub) {
+          return responder(422, { message: 'grant de outro usuário' });
+        }
+        auditoria.push(linha);
+        return responder(201, null);
+      }
+      return responder(404, { message: 'Not Found' });
+    }
+
+    const quem = token.azp;
+    if (quem !== undefined && quem !== 'resgata-mcp') return responder(403, { message: 'Forbidden' });
+    const rota = rotas.find((r) => r.op.method === req.method && r.regex.test(url.pathname));
+    if (!rota) return responder(404, { message: 'Not Found', causeId: 'rota_fora_do_manifesto' });
+    for (const p of rota.op.forbiddenParams ?? []) {
+      if (url.searchParams.has(p)) return responder(403, { message: 'Forbidden', causeId: 'mcp_route_not_allowed' });
+    }
+
     const valores = rota.regex.exec(url.pathname)?.slice(1) ?? [];
     const params = Object.fromEntries(rota.nomes.map((n, i) => [n, decodeURIComponent(valores[i] ?? '')]));
     const chave = req.headers['idempotency-key'];
     const idempotencyKey = typeof chave === 'string' ? chave : undefined;
+    const cabecalhos = Object.fromEntries(
+      ['x-request-id', 'traceparent', 'x-audit-reason']
+        .map((h) => [h, req.headers[h]])
+        .filter((p): p is [string, string] => typeof p[1] === 'string'),
+    );
     chamadas.push({
       operacao: rota.op.operationId,
       metodo: req.method ?? 'GET',
       caminho: url.pathname,
       consulta: Object.fromEntries(url.searchParams),
       corpo,
+      cabecalhos,
       ...(idempotencyKey ? { idempotencyKey } : {}),
     });
 
     const fixture = fixtures.get(rota.op.operationId);
-    if (!fixture) return responder(501, { title: 'Not Implemented', code: 'fixture_ausente' });
+    if (!fixture) return responder(501, { message: 'Not Implemented', causeId: 'fixture_ausente' });
 
     if (rota.op.idempotencyKey !== 'required') {
       const r = await fixture({ params, consulta: url.searchParams, corpo });
-      return responder(r.status, r.corpo);
+      return responder(r.status, r.corpo, r.cabecalhos);
     }
-    if (!idempotencyKey) return responder(400, { title: 'Bad Request', code: 'idempotency_key_required' });
+    if (!idempotencyKey) return responder(400, { message: 'Bad Request', causeId: 'idempotency_key_required' });
     const hash = createHash('sha256').update(texto).digest('base64url');
     const anterior = idempotencia.get(idempotencyKey);
     if (anterior) {
-      if (anterior.hash !== hash) return responder(422, { title: 'Unprocessable', code: 'idempotency_key_reused' });
-      if (!anterior.resposta) return responder(409, { title: 'Conflict', code: 'idempotency_in_progress' });
+      if (anterior.hash !== hash) return responder(409, { message: 'Conflict', causeId: 'idempotency_key_reused' });
+      if (!anterior.resposta) {
+        return responder(409, { message: 'Conflict', causeId: 'idempotency_request_in_progress' });
+      }
       return responder(anterior.resposta.status, anterior.resposta.corpo, { 'idempotent-replayed': 'true' });
     }
     const registro: { hash: string; resposta?: { status: number; corpo: unknown } } = { hash };
     idempotencia.set(idempotencyKey, registro);
     const r = await fixture({ params, consulta: url.searchParams, corpo });
-    registro.resposta = r;
+    if (r.status < 300) registro.resposta = r;
+    else idempotencia.delete(idempotencyKey);
     return responder(r.status, r.corpo);
   });
 
@@ -104,6 +171,13 @@ export async function iniciarV2Falsa(porta = 0, agora: () => number = Date.now):
     url: `http://127.0.0.1:${port}`,
     chamadas,
     oauth,
+    auditoria,
+    get auditoriaFalhando() {
+      return estado.auditoriaFalhando;
+    },
+    set auditoriaFalhando(v: boolean) {
+      estado.auditoriaFalhando = v;
+    },
     definir: (op, f) => {
       fixtures.set(op, f);
     },

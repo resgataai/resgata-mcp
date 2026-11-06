@@ -3,7 +3,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 /**
  * AES-256-GCM do refresh offline do IdP (`MCP_UPSTREAM_KEY`). Formato: iv (12) ‖ tag (16) ‖ texto cifrado.
  * A AAD prende o texto ao dono: `uid` da interação no callback, `grant_id` depois do consentimento.
- * O P4 decifra o do grant com `decifrar(chave, cifra, grantId)`.
+ * O cliente da V2 decifra o do grant com `decifrar(chave, cifra, grantId)`. Único módulo de cifra do serviço.
  */
 export function cifrar(chave: Buffer, texto: string, aad: string): Buffer {
   const iv = randomBytes(12);

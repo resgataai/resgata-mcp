@@ -20,6 +20,7 @@
     "segredos": "sh scripts/segredos.sh",
     "nomes": "bun scripts/nomes-proibidos.ts",
     "drift:v2": "bun scripts/drift-v2.ts",
+    "catalogo:check": "bun scripts/checar-catalogo.ts",
     "gate": "sh scripts/gate.sh"
   },
   "dependencies": {

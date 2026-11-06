@@ -16,7 +16,7 @@ describe('V2 falsa', () => {
     expect((await fetch(`${v2.url}/v2/auth/me`)).status).toBe(401);
     expect((await fetch(`${v2.url}/v2/auth/me`, { headers: h })).status).toBe(200);
     expect((await fetch(`${v2.url}/v2/admin/panel-users`, { headers: h })).status).toBe(404);
-    expect((await fetch(`${v2.url}/v2/admin/audiences/a1`, { headers: h })).status).toBe(501);
+    expect((await fetch(`${v2.url}/v2/admin/audiences/a1`, { headers: h })).status).toBe(200);
     expect(v2.chamadas.map((c) => c.operacao)).toEqual(['me', 'adminAudiencesDetail']);
   });
 
@@ -45,8 +45,10 @@ describe('V2 falsa', () => {
     expect([a.status, b.status].sort()).toEqual([202, 409]);
     const replay = await enviar('k1', corpo);
     expect(replay.headers.get('idempotent-replayed')).toBe('true');
-    expect(await replay.json()).toEqual({ testId: 't1' });
-    expect((await enviar('k1', { ...corpo, templateId: 'm2' })).status).toBe(422);
+    expect(await replay.json()).toMatchObject({ success: true, data: { testId: 't1' } });
+    const outro = await enviar('k1', { ...corpo, templateId: 'm2' });
+    expect(outro.status).toBe(409);
+    expect(await outro.json()).toMatchObject({ causeId: 'idempotency_key_reused' });
     expect(envios).toBe(1);
   });
 });
@@ -113,6 +115,10 @@ describe('IdP falso', () => {
     idp.definirPapeis('demo-usuario-1', ['ADMIN', 'MCP_ACCESS']);
     const r = (await (await token({ grant_type: 'refresh_token', refresh_token: t.refresh_token })).json()) as Tokens;
     expect(papeis(r.access_token)).not.toContain('MCP_CONTACT');
+    // refresh offline reaproveitável (revokeRefreshToken=false), até o usuário ser desativado
+    expect((await token({ grant_type: 'refresh_token', refresh_token: t.refresh_token })).status).toBe(200);
+    const u = idp.usuarios.get('demo-usuario-1');
+    if (u) u.ativo = false;
     expect((await token({ grant_type: 'refresh_token', refresh_token: t.refresh_token })).status).toBe(400);
 
     const svc = await fetch(meta.token_endpoint ?? '', {

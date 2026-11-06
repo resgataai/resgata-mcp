@@ -60,6 +60,8 @@ const comum = {
   PORT: z.coerce.number().int().min(0).max(65535).default(8080),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   MCP_EFFECTS_ENABLED: booleano,
+  // Transcrições e mensagens do provedor no contexto da IA: fechado até a decisão D4.
+  MCP_TRANSCRIPTS_ENABLED: booleano,
   MCP_DISABLED_TOOLS: lista,
   // Saltos de proxy confiáveis para req.ip (X-Forwarded-For); o manifest de produção define o valor da borda.
   MCP_TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
@@ -109,6 +111,7 @@ export type Config = {
   urlPublica: string;
   recurso: string;
   efeitosLigados: boolean;
+  transcricoesLigadas: boolean;
   ferramentasDesligadas: string[];
   saltosProxy: number;
   /** Ausente em modo demo: o processo sobe a V2 falsa e preenche depois. */
@@ -159,6 +162,7 @@ export function carregarConfig(env: NodeJS.ProcessEnv = process.env): Config {
       urlPublica,
       recurso: `${urlPublica}/mcp`,
       efeitosLigados: r.data.MCP_EFFECTS_ENABLED,
+      transcricoesLigadas: r.data.MCP_TRANSCRIPTS_ENABLED,
       ferramentasDesligadas: r.data.MCP_DISABLED_TOOLS,
       saltosProxy: r.data.MCP_TRUST_PROXY_HOPS,
       chaves: chavesEfemeras(),
@@ -179,6 +183,7 @@ export function carregarConfig(env: NodeJS.ProcessEnv = process.env): Config {
     urlPublica: d.MCP_PUBLIC_URL,
     recurso: d.MCP_RESOURCE,
     efeitosLigados: d.MCP_EFFECTS_ENABLED,
+    transcricoesLigadas: d.MCP_TRANSCRIPTS_ENABLED,
     ferramentasDesligadas: d.MCP_DISABLED_TOOLS,
     saltosProxy: d.MCP_TRUST_PROXY_HOPS,
     v2BaseUrl: d.V2_API_BASE_URL,

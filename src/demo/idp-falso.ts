@@ -163,7 +163,8 @@ export async function iniciarIdpFalso(opcoes: { redirectMcp?: string; porta?: nu
         if (!cliente) return json(401, { error: 'invalid_client' });
         const tipo = form.get('grant_type');
         if (tipo === 'client_credentials') {
-          const scope = form.get('scope') ?? '';
+          // Como o realm: sem `scope` no pedido, valem os client scopes padrão do client de serviço.
+          const scope = form.get('scope') ?? (cliente === clientes.svc ? 'mcp:oauth-store mcp:audit' : '');
           return json(200, {
             access_token: await assinar(
               { sub: `service-account-${cliente.clientId}`, azp: cliente.clientId, scope },
@@ -198,7 +199,7 @@ export async function iniciarIdpFalso(opcoes: { redirectMcp?: string; porta?: nu
           const r = refreshes.get(antigo);
           const u = r ? usuarios.get(r.sub) : undefined;
           if (!r || r.clientId !== cliente.clientId || !u?.ativo) return json(400, { error: 'invalid_grant' });
-          refreshes.delete(antigo);
+          // Como o realm (revokeRefreshToken=false): o refresh offline continua valendo depois de usado.
           return json(200, await emitir(u, cliente.clientId, r.scope));
         }
         return json(400, { error: 'unsupported_grant_type' });

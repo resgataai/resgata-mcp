@@ -6,7 +6,7 @@ import {
   type McpHttpHandler,
   verifyBearerToken,
 } from '@modelcontextprotocol/server';
-import express, { type NextFunction, type Request, type Response } from 'express';
+import express, { type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import { Counter, collectDefaultMetrics, Registry } from 'prom-client';
 import type { Limites } from './limites.js';
 import type { Registrador } from './log.js';
@@ -30,6 +30,8 @@ export type DependenciasServidor = {
   saltosProxy: number;
   autorizacao: ServidorAutorizacao;
   mcp: McpHttpHandler;
+  /** Portão de escopo efetivo e auditoria de negadas (`src/mcp/portao.ts`), depois do corpo lido. */
+  portaoMcp?: RequestHandler;
   limites: Limites;
   log: Registrador;
   dependencias: readonly Dependencia[];
@@ -165,6 +167,7 @@ export function criarApp(d: DependenciasServidor) {
       res.status(429).json({ erro: { codigo: 'limite', mensagem: 'limite de chamadas por minuto atingido' } });
     },
     express.json({ limit: '1mb' }),
+    d.portaoMcp ?? ((_req, _res, next) => next()),
     async (req, res, next) => {
       try {
         await responder(
