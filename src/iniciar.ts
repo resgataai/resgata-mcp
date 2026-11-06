@@ -2,8 +2,8 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { Registry } from 'prom-client';
 import type { Config } from './config.js';
-import { iniciarIdpFalso } from './demo/idp-falso.js';
-import { iniciarV2Falsa } from './demo/v2-falsa.js';
+import { type IdpFalso, iniciarIdpFalso } from './demo/idp-falso.js';
+import { iniciarV2Falsa, type V2Falsa } from './demo/v2-falsa.js';
 import { FERRAMENTAS } from './ferramentas/index.js';
 import { criarLimites } from './limites.js';
 import { criarLog, type Registrador } from './log.js';
@@ -12,19 +12,29 @@ import { criarPortao } from './mcp/portao.js';
 import { criarHandlerMcp } from './mcp/servidor-mcp.js';
 import { criarArmazemV2 } from './oauth/armazem-v2.js';
 import { criarIdp } from './oauth/keycloak.js';
-import { criarServidorAutorizacao } from './oauth/provider.js';
+import { criarServidorAutorizacao, type OpcoesServidorAutorizacao } from './oauth/provider.js';
 import { criarApp, dependenciaHttp } from './servidor.js';
 import { criarClienteV2 } from './v2/cliente.js';
 import { criarCredencialServico, urlTokenKeycloak } from './v2/servico.js';
 
 export const VERSAO = '0.0.0';
 
-export type Instancia = { url: string; log: Registrador; fechar(): Promise<void> };
+export type Instancia = {
+  url: string;
+  log: Registrador;
+  /** Só em modo demo: a V2 e o IdP falsos, para os testes de ponta a ponta. */
+  demo?: { v2: V2Falsa; idp: IdpFalso };
+  fechar(): Promise<void>;
+};
 
 /**
  * Monta e sobe o serviço. Em modo demo sobe antes a V2 falsa e o IdP falso, só em 127.0.0.1.
  */
-export async function iniciar(config: Config, log: Registrador = criarLog(config.logLevel)): Promise<Instancia> {
+export async function iniciar(
+  config: Config,
+  log: Registrador = criarLog(config.logLevel),
+  testes: Pick<OpcoesServidorAutorizacao, 'buscaCimd'> = {},
+): Promise<Instancia> {
   const aoFechar: Array<() => Promise<void>> = [];
   // Escuta antes de montar: em demo com PORT=0 o emissor OAuth precisa da porta real.
   const servidor = http.createServer();
@@ -35,9 +45,11 @@ export async function iniciar(config: Config, log: Registrador = criarLog(config
 
   let v2BaseUrl = config.v2BaseUrl;
   let keycloak = config.keycloak;
+  let demo: Instancia['demo'];
   if (config.modo === 'demo') {
     const v2 = await iniciarV2Falsa();
     const idp = await iniciarIdpFalso({ redirectMcp: `${urlPublica}/oauth/keycloak/callback` });
+    demo = { v2, idp };
     aoFechar.push(v2.fechar, idp.fechar);
     v2BaseUrl = v2.url;
     keycloak = {
@@ -64,6 +76,7 @@ export async function iniciar(config: Config, log: Registrador = criarLog(config
     log,
     registro,
     sondarCimd: config.modo === 'producao',
+    ...testes,
   });
   const tokenUrl = urlTokenKeycloak(keycloak.issuer);
   const servico = criarCredencialServico({
@@ -127,6 +140,7 @@ export async function iniciar(config: Config, log: Registrador = criarLog(config
   return {
     url: `http://127.0.0.1:${port}`,
     log,
+    demo,
     fechar: async () => {
       await new Promise<void>((ok) => {
         servidor.closeAllConnections();

@@ -220,11 +220,12 @@ const minhasAcoes = definir({
     const j = janela(args.de, args.ate, 7, ctx.agora());
     const filtros = filtrosDe(args);
     const c = posicao(ctx, 'auditoria_minhas_acoes', filtros, args.cursor);
-    const { dados } = await ctx.chamar<{ data?: unknown[]; meta?: { nextCursor?: string | null; total?: number } }>({
+    // A2: ApiResponse<CursorPage<AdminAuditEventDTO>> → { items, page: { nextCursor, hasMore, limit } }.
+    const { dados } = await ctx.chamar<{ items?: unknown[]; page?: { nextCursor?: string | null } }>({
       operacao: 'adminMcpToolCallsMine',
       consulta: { from: j.from, to: j.to, size: args.limite, cursor: c === undefined ? undefined : String(c) },
     });
-    const itens = lista<Record<string, unknown>>(dados.data)
+    const itens = lista<Record<string, unknown>>(dados.items)
       .map((e) => ({
         quando: horaBrt(e.occurredAt),
         ferramenta: String(e.action ?? '').replace(/^mcp\./, ''),
@@ -238,7 +239,7 @@ const minhasAcoes = definir({
       dados: { observacao: args.ferramenta ? 'filtro por ferramenta aplicado nesta página' : null },
       pagina: {
         itens,
-        proximo_cursor: proximo(ctx, 'auditoria_minhas_acoes', filtros, dados.meta?.nextCursor),
+        proximo_cursor: proximo(ctx, 'auditoria_minhas_acoes', filtros, dados.page?.nextCursor),
         total: null,
       },
       periodo: j,

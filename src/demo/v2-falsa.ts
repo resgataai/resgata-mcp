@@ -14,6 +14,8 @@ export type ChamadaRegistrada = {
   corpo: unknown;
   idempotencyKey?: string;
   cabecalhos: Record<string, string>;
+  /** `sub` do token do usuário que fez a chamada (testes de isolamento). */
+  sub?: string;
 };
 
 export type V2Falsa = {
@@ -42,12 +44,35 @@ function compilar(op: OperacaoV2): Rota {
 }
 
 /** Claims do Bearer, se for JWT (a V2 falsa não confere assinatura; o IdP falso é quem emite). */
-function claims(autorizacao: string): { azp?: string; scope?: string } {
+function claims(autorizacao: string): { azp?: string; scope?: string; sub?: string } {
   try {
-    return decodeJwt(autorizacao.replace(/^Bearer /, '')) as { azp?: string; scope?: string };
+    return decodeJwt(autorizacao.replace(/^Bearer /, '')) as { azp?: string; scope?: string; sub?: string };
   } catch {
     return {};
   }
+}
+
+/** As restrições de `McpToolCallAuditRequest` (A2, `mcp-audit-v1`): o que a V2 recusaria com 400. */
+export function linhaAuditoriaValida(l: Record<string, unknown>): boolean {
+  const campo = (k: string, re: RegExp, obrigatorio = false) =>
+    l[k] === undefined || l[k] === null ? !obrigatorio : typeof l[k] === 'string' && re.test(l[k]);
+  return (
+    campo('tool', /^[a-z][a-z0-9_]{1,63}$/, true) &&
+    campo('outcome', /^(ok|denied|error|accepted|replayed)$/, true) &&
+    campo('userSub', /^\S.{0,254}$/, true) &&
+    campo('grantId', /^\S.{0,127}$/, true) &&
+    campo('clientId', /^\S.{0,254}$/, true) &&
+    campo('requestId', /^[A-Za-z0-9._-]{1,120}$/, true) &&
+    campo('targetType', /^.{0,80}$/) &&
+    campo('targetId', /^.{0,160}$/) &&
+    campo('planId', /^.{0,128}$/) &&
+    campo('idempotencyKeyHash', /^.{0,128}$/) &&
+    campo('paramsDigest', /^.{0,128}$/) &&
+    campo('errorCode', /^.{0,80}$/) &&
+    Number.isInteger(l.latencyMs) &&
+    (l.latencyMs as number) >= 0 &&
+    Object.keys((l.params ?? {}) as object).length <= 32
+  );
 }
 
 const envelope = (status: number, corpo: unknown) =>
@@ -103,6 +128,7 @@ export async function iniciarV2Falsa(porta = 0, agora: () => number = Date.now):
           return responder(403, { message: 'Forbidden' });
         if (estado.auditoriaFalhando) return responder(503, { message: 'indisponível' });
         const linha = (corpo ?? {}) as Record<string, unknown>;
+        if (!linhaAuditoriaValida(linha)) return responder(400, { message: 'Bad Request', causeId: 'validation' });
         // Como McpToolCallAuditService: o grant (revogado também vale) tem de ser desse userSub.
         if (oauth.grants.get(String(linha.grantId))?.userSub !== linha.userSub) {
           return responder(422, { message: 'grant de outro usuário' });
@@ -137,6 +163,7 @@ export async function iniciarV2Falsa(porta = 0, agora: () => number = Date.now):
       consulta: Object.fromEntries(url.searchParams),
       corpo,
       cabecalhos,
+      ...(token.sub ? { sub: token.sub } : {}),
       ...(idempotencyKey ? { idempotencyKey } : {}),
     });
 

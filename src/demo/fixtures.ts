@@ -80,12 +80,12 @@ export const FIXTURES: Record<string, Fixture> = {
     }),
   adminMcpToolCallsMine: () =>
     ok(
-      pagina([
+      cursorPage([
         {
           occurredAt: AGORA,
           action: 'mcp.bi_hoje',
-          outcome: 'SUCCEEDED',
-          resourceType: null,
+          outcome: 'ok',
+          resourceType: 'mcp_tool',
           requestId: 'req-demo-1',
           reason: 'nunca sai',
         },

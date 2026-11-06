@@ -21,8 +21,14 @@ describe('manifesto da V2 e drift', () => {
   });
 
   it('caminho ou método alterado na V2 é drift; operação pendente ausente é só aviso', () => {
-    const m = carregarManifesto();
-    const alterado = recorte().map((o) => (o.operationId === 'me' ? { ...o, path: '/v2/auth/eu' } : o));
+    const base = carregarManifesto();
+    const m = {
+      ...base,
+      operations: base.operations.map((o) => (o.operationId === 'adminMcpToolCallsMine' ? { ...o, pending: true } : o)),
+    };
+    const alterado = recorte()
+      .filter((o) => o.operationId !== 'adminMcpToolCallsMine')
+      .map((o) => (o.operationId === 'me' ? { ...o, path: '/v2/auth/eu' } : o));
     const r = compararDrift(m, alterado);
     expect(r.erros).toEqual(['me: manifesto GET /v2/auth/me, V2 GET /v2/auth/eu']);
     expect(r.avisos.some((a) => a.startsWith('adminMcpToolCallsMine'))).toBe(true);

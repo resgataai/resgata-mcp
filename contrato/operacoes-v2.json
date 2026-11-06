@@ -12,8 +12,7 @@
       "operationId": "adminMcpToolCallsMine",
       "method": "GET",
       "path": "/v2/admin/mcp/tool-calls/mine",
-      "tools": ["auditoria_minhas_acoes"],
-      "pending": true
+      "tools": ["auditoria_minhas_acoes"]
     },
     {
       "operationId": "lookup",

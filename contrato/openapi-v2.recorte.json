@@ -127,6 +127,17 @@
     ]
   },
   {
+    "operationId": "adminMcpToolCallsMine",
+    "method": "GET",
+    "path": "/v2/admin/mcp/tool-calls/mine",
+    "params": [
+      "cursor",
+      "from",
+      "size",
+      "to"
+    ]
+  },
+  {
     "operationId": "adminTemplateTestGet",
     "method": "GET",
     "path": "/v2/admin/templates/tests/{id}",
