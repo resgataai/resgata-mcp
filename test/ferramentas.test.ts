@@ -48,11 +48,12 @@ const CHAMADAS: Array<[string, Record<string, unknown>]> = [
   ['atendimento_fila', {}],
   ['diagnostico_saude', {}],
   ['diagnostico_provedor', { provedor: 'PROVEDOR_DEMO' }],
+  ['diagnostico_cpf', { userUuid: CLIENTE_1 }],
 ];
 
 describe('catálogo do incremento 1', () => {
-  it('27 ferramentas coerentes com o manifesto (catalogo:check)', () => {
-    expect(FERRAMENTAS).toHaveLength(27);
+  it('28 ferramentas coerentes com o manifesto (catalogo:check)', () => {
+    expect(FERRAMENTAS).toHaveLength(28);
     expect(checarCatalogo(FERRAMENTAS, carregarManifesto())).toEqual([]);
     expect(new Set([...CHAMADAS.map(([n]) => n), 'contato_executar'])).toEqual(new Set(FERRAMENTAS.map((f) => f.nome)));
   });
@@ -72,7 +73,16 @@ describe('catálogo do incremento 1', () => {
 describe('ferramentas contra a V2 falsa', () => {
   it('cada ferramenta responde no envelope fechado, sem CPF, telefone, e-mail ou CEP em claro, nem em texto livre', async () => {
     const a = await subir({ transcricoes: true });
-    const c = await a.mcp(await a.conectar('demo-usuario-1'));
+    a.idp.definirPapeis('demo-usuario-1', [
+      'ADMIN',
+      'MCP_ACCESS',
+      'MCP_READ_BI',
+      'MCP_READ_CLIENTES',
+      'MCP_CONTACT',
+      'MCP_DIAG_CPF',
+      'MCP_PII',
+    ]);
+    const c = await a.mcp(await a.conectar('demo-usuario-1', [...TODOS, 'resgata:diagnostics.cpf', 'resgata:pii']));
     for (const [nome, args] of CHAMADAS) {
       const r = (await c.callTool({ name: nome, arguments: args })) as Resultado;
       expect(r.isError, `${nome}: ${JSON.stringify(r.structuredContent)}`).toBeFalsy();

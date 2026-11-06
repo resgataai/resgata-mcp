@@ -105,6 +105,8 @@ de execução com aprovação a cada uso (veja o guia de instalação) e leia o 
 
 ## Dados pessoais
 
+`diagnostico_cpf` exige leitura de clientes, diagnóstico e PII em conjunto. Retorna somente o corpo de resposta registrado e sanitizado, o erro e metadados da chamada, nunca requisições, cabeçalhos de autenticação ou segredos. O corpo pode conter campos de negócio do provedor e é marcado como conteúdo externo não confiável. Esse acesso não libera transcrições nem ações externas. Mensagens técnicas não são gravadas na auditoria.
+
 - [Inc. 1] CPF, telefone, e-mail e CEP aparecem mascarados por padrão, também dentro de textos. Ver completo exige
   permissão específica e fica registrado.
 - [Inc. 1] Conta bancária, renda e endereço não são devolvidos por padrão. Transcrições de conversas só são liberadas

@@ -18,7 +18,7 @@
       "operationId": "lookup",
       "method": "POST",
       "path": "/v2/users/lookup",
-      "tools": ["clientes_buscar", "cliente_dossie", "contato_planejar"]
+      "tools": ["clientes_buscar", "cliente_dossie", "contato_planejar", "diagnostico_cpf"]
     },
     {
       "operationId": "getUserRecord",

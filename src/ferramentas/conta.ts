@@ -87,7 +87,6 @@ const PLANEJADAS: ReadonlyArray<[string, number]> = [
   ['bi_comparar_periodos', 4],
   ['bi_insights_ia', 4],
   ['relatorio_salvar', 4],
-  ['diagnostico_cpf', 4],
   ['diagnostico_monitorar', 4],
   ['reprocessar_planejar', 4],
   ['dados_exportar', 4],
@@ -103,7 +102,8 @@ const LACUNAS_CONHECIDAS = [
   { codigo: 'busca_por_nome', mensagem: 'Busca de cliente por nome só no inc. 2; hoje por CPF, e-mail ou telefone.' },
   {
     codigo: 'dados_pessoais_mascarados',
-    mensagem: 'CPF, telefone, e-mail e CEP sempre mascarados; conta, renda e endereço ficam fora.',
+    mensagem:
+      'CPF, telefone, e-mail e CEP mascarados. Corpo técnico registrado exige diagnostics.cpf e pii; pode conter outros campos de negócio do retorno.',
   },
 ];
 

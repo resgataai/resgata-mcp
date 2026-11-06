@@ -1,4 +1,5 @@
 import * as z from 'zod';
+import { sanitizarTecnico } from '../mcp/dados-tecnicos.js';
 import { envelope, horaBrt, janela, type Lacuna, saidaEnvelope } from '../mcp/envelope.js';
 import { mascararCpf, mascararEmail, mascararTelefone, textoExterno } from '../mcp/mascara.js';
 import { ErroV2 } from '../v2/tipos.js';
@@ -289,7 +290,7 @@ const esquemaCelula = z.strictObject({
   canal: sn,
   tentativa_id: sn,
   inicio_tentativa: sn,
-  erro: z.strictObject({ codigo: sn, classe: sn, resumo: sn, provedor: sn }).nullable(),
+  erro: z.strictObject({ codigo: sn, classe: sn, resumo: sn, mensagem: sn, provedor: sn, tentativas: nn }).nullable(),
 });
 
 const jornadaListar = definir({
@@ -381,6 +382,8 @@ const jornadaListar = definir({
                   codigo: str(erro.code) ?? str(atual.code),
                   classe: str(erro.errorClass),
                   resumo: textoExterno(erro.summary, 300),
+                  mensagem: sanitizarTecnico(str(atual.message)),
+                  tentativas: num(erro.attempts),
                   provedor: str(erro.provider),
                 }
               : null,
@@ -403,13 +406,39 @@ const jornadaListar = definir({
       periodo: j,
       lacunas: [
         {
-          codigo: 'mensagens_do_provedor_fora',
-          mensagem: 'Mensagens do provedor ficam fora até a decisão sobre dados em clientes de IA.',
+          codigo: 'corpo_resposta_tecnica',
+          mensagem:
+            'Para o corpo registrado da resposta do provedor e correlação da chamada, use diagnostico_cpf com o userUuid e os escopos de diagnóstico/PII.',
         },
       ],
     });
   },
 });
+
+const campoTecnico = z.strictObject({ rotulo: sn, valor: sn });
+const esquemaDetalhesTecnicos = z
+  .strictObject({
+    erros: z.array(campoTecnico),
+    tecnicos: z.array(campoTecnico),
+    elegibilidade: z.array(campoTecnico),
+    limitado: z.boolean(),
+  })
+  .nullable();
+const detalhesTecnicos = (valor: unknown) => {
+  const d = obj(valor);
+  if (!Object.keys(d).length) return null;
+  const campos = (v: unknown) =>
+    lista<Record<string, unknown>>(v).map((f) => ({
+      rotulo: textoExterno(f.label, 120),
+      valor: sanitizarTecnico(str(f.value)),
+    }));
+  return {
+    erros: campos(d.errors),
+    tecnicos: campos(d.technical),
+    elegibilidade: campos(d.eligibility),
+    limitado: d.limited === true,
+  };
+};
 
 const clienteJornada = definir({
   nome: 'cliente_jornada',
@@ -446,6 +475,7 @@ const clienteJornada = definir({
       fonte: sn,
       proposalUuid: sn,
       correlacao: sn,
+      detalhes: esquemaDetalhesTecnicos,
     }),
   ),
   async executar(args, ctx) {
@@ -474,8 +504,9 @@ const clienteJornada = definir({
     const conv = conversas.dados;
     const lacunas: Lacuna[] = [
       {
-        codigo: 'mensagens_do_provedor_fora',
-        mensagem: 'Mensagens do provedor e detalhes técnicos ficam fora até a decisão sobre dados em clientes de IA.',
+        codigo: 'corpo_resposta_tecnica',
+        mensagem:
+          'Erros e detalhes técnicos registrados estão nos eventos; para o corpo da resposta, use diagnostico_cpf. Dados ausentes ou limitados na captura não podem ser reconstruídos.',
       },
       { codigo: 'jornada_parcial', mensagem: 'Jornada unificada (campanhas, cobrança, atendimento) no incremento 2.' },
     ];
@@ -509,6 +540,7 @@ const clienteJornada = definir({
           fonte: str(i.source),
           proposalUuid: str(i.proposalUuid),
           correlacao: str(i.correlationReason),
+          detalhes: detalhesTecnicos(i.details),
         })),
         proximo_cursor: proximo(ctx, 'cliente_jornada', filtros, log.dados.hasMore === true ? pagina + 1 : null),
         total: null,

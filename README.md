@@ -5,10 +5,7 @@ autorizadas consultem dados, peçam análises e executem operações de negócio
 partir do **Claude** (Claude.ai, Claude Desktop, app móvel e Claude Code) e do **Codex** (CLI, extensão de IDE e app).
 O login usa a mesma conta do painel administrativo da Resgata.ai, por OAuth.
 
-> **Estado em 06/11/2026: em construção.** O servidor **ainda não está no ar**, nenhuma ferramenta funciona hoje e o
-> MCP **não pode ser instalado ainda**. O código do primeiro incremento já roda no modo demonstração, com dados
-> sintéticos, na sua máquina ([INSTALAR.md](INSTALAR.md) seção 8). Quando algo for liberado, este aviso e o
-> [catálogo](CATALOGO.md) dizem exatamente o quê.
+> **Estado em 06/11/2026: modo remoto em construção.** O servidor HTTP ainda não está liberado. O [modo local autorizado](docs/LOCAL.md) está disponível para um Mac provisionado pelo administrador; a demonstração usa dados sintéticos ([INSTALAR.md](INSTALAR.md) seção 8). Consulte o [catálogo](CATALOGO.md) para distinguir ferramentas disponíveis de capacidades futuras.
 
 ## O que já existe e o que é planejado
 
@@ -21,7 +18,8 @@ O login usa a mesma conta do painel administrativo da Resgata.ai, por OAuth.
 | Envio de e-mail por modelo a um cliente, com prévia | Incremento 1: pronto no modo demonstração (envio simulado), aguarda liberação. |
 | "Chame o cliente X e fale Y" por WhatsApp, SMS e e-mail; pedir à Agente Rê para retomar um atendimento | Planejado para o incremento 2. |
 | Campanhas, cobrança, acompanhamentos ("acompanhe por 3 dias"), rotinas e alertas | Planejado para o incremento 3. |
-| Diagnóstico de provedores e por CPF, custos por anúncio, relatórios, CRM, voz | Planejado para o incremento 4. |
+| Respostas técnicas registradas por CPF/cliente | Disponíveis no modo local autorizado: HTTP, corpo sanitizado, erro e correlação. |
+| Diagnóstico completo de provedores, custos por anúncio, relatórios, CRM, voz | Entrega incremental; capacidades restantes planejadas. |
 | Modo demonstração com dados sintéticos, para testar sem conta | Disponível: `bun run dev:demo` ([INSTALAR.md](INSTALAR.md) seção 8). |
 
 ## Ordem de entrega
