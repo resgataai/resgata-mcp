@@ -4,6 +4,7 @@ import type Provider from 'oidc-provider';
 import type { Interaction } from 'oidc-provider';
 import type { Registrador } from '../log.js';
 import { ESCOPOS, escoposDosPapeis, PAPEL_ACESSO } from '../mcp/escopos.js';
+import { hashId } from './adaptador-v2.js';
 import type { ArmazemV2 } from './armazem-v2.js';
 import { cifrar, decifrar } from './cifra.js';
 import { ehLoopback, nomeDoCliente } from './cimd.js';
@@ -199,6 +200,9 @@ export function rotasInteracao(d: DependenciasInteracao): Router {
       const corpo = (req.body ?? {}) as Record<string, unknown>;
       if (!igual(corpo.csrf, idp.csrf))
         return aviso(res, 403, 'Pedido inválido', 'Recarregue a página e tente de novo.');
+
+      // Uma decisão por interação, mesmo com dois cliques ou duas réplicas: o consumo na V2 é atômico.
+      if ((await d.armazem.consumir('Interaction', hashId(det.uid))) !== 'ok') return expirou(res);
 
       const clientId = det.params.client_id ?? '';
       const pedidos = (det.params.scope ?? '').split(' ').filter(Boolean);

@@ -438,6 +438,23 @@ describe('autorização', () => {
     expect(amb.v2.oauth.grants.size).toBe(0);
   });
 
+  it('dois envios da mesma aprovação criam um grant só', async () => {
+    const amb = await montar();
+    const nav = navegador(amb);
+    const tela = await nav.ir(linkAutorizacao(amb).link);
+    const acao = /action="([^"]+)"/.exec(tela.html ?? '')?.[1] ?? '';
+    const csrf = /name="csrf" value="([^"]+)"/.exec(tela.html ?? '')?.[1] ?? '';
+    const enviar = () =>
+      nav.ir(`${amb.url}${acao}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ csrf, decisao: 'aprovar' }),
+      });
+    const respostas = await Promise.all([enviar(), enviar()]);
+    expect(respostas.filter((r) => r.saida?.searchParams.get('code')).length).toBe(1);
+    expect(amb.v2.oauth.grants.size).toBe(1);
+  });
+
   it('CIMD fora da lista não é buscado; retorno fora do documento, resource errado e PKCE plain são recusados', async () => {
     const amb = await montar();
     const fora = await navegador(amb).ir(linkAutorizacao(amb, 'https://exemplo.invalid/cimd.json').link);
