@@ -7,10 +7,10 @@
 // Fora do gate: o pacote traz dependências com faixa de versão (^) e não entra no lockfile.
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { CIMD, CLAUDE_CODE, Navegador, pkce, REDIRECT } from '../test/apoio-oauth.js';
 import { carregarConfig } from '../src/config.js';
 import { iniciar } from '../src/iniciar.js';
 import { criarLog } from '../src/log.js';
+import { CIMD, CLAUDE_CODE, Navegador, pkce, REDIRECT } from '../test/apoio-oauth.js';
 
 const inst = await iniciar(carregarConfig({ MCP_MODO: 'demo', PORT: '0', LOG_LEVEL: 'warn' }), criarLog('warn'), {
   buscaCimd: async (u) => {
@@ -59,10 +59,13 @@ if (!t.access_token) throw new Error('fluxo OAuth não devolveu token');
 const destino = new URL(inst.url);
 const repasse = http.createServer((req, res) => {
   const headers = { ...req.headers, authorization: `Bearer ${t.access_token}` };
-  const r = http.request({ host: destino.hostname, port: destino.port, path: req.url, method: req.method, headers }, (x) => {
-    res.writeHead(x.statusCode ?? 502, x.headers);
-    x.pipe(res);
-  });
+  const r = http.request(
+    { host: destino.hostname, port: destino.port, path: req.url, method: req.method, headers },
+    (x) => {
+      res.writeHead(x.statusCode ?? 502, x.headers);
+      x.pipe(res);
+    },
+  );
   r.on('error', () => res.destroy());
   req.pipe(r);
 });
