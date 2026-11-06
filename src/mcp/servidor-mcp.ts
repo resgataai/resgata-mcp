@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomUUID } from 'node:crypto';
-import { createMcpHandler, type McpHttpHandler, McpServer } from '@modelcontextprotocol/server';
+import { type AuthInfo, createMcpHandler, type McpHttpHandler, McpServer } from '@modelcontextprotocol/server';
 import type { Limites } from '../limites.js';
 import { paramsAuditaveis, type Registrador } from '../log.js';
 import { type ExtraDoToken, extraDoToken } from '../oauth/tipos.js';
@@ -92,95 +92,98 @@ export const hashChave = (chave: string) => createHash('sha256').update(chave).d
  * (o portão em `portao.ts` já recalculou `authInfo.scopes`). Cada chamada gera uma linha de auditoria.
  */
 export function criarHandlerMcp(d: DependenciasMcp): McpHttpHandler {
+  return createMcpHandler(({ authInfo }) => criarServidorMcp(d, authInfo));
+}
+
+/** Catálogo e execução compartilhados pelos transportes HTTP e stdio. */
+export function criarServidorMcp(d: DependenciasMcp, authInfo?: AuthInfo): McpServer {
   const agora = d.agora ?? (() => new Date());
-  return createMcpHandler(({ authInfo }) => {
-    const servidor = new McpServer({ name: 'resgata-mcp', version: d.versao });
-    const token = extraDoToken(authInfo?.extra);
-    if (!authInfo || !token) return servidor;
-    const escopos = new Set(authInfo.scopes);
-    for (const f of d.ferramentas) {
-      if (!visivel(f, escopos, d)) continue;
-      servidor.registerTool(
-        f.nome,
-        {
-          title: f.titulo,
-          description: f.descricao,
-          inputSchema: f.entrada,
-          outputSchema: f.saida,
-          annotations: f.anotacoes,
-        },
-        async (args: Record<string, unknown>) => {
-          const requestId = randomUUID();
-          const inicio = performance.now();
-          const registro: RegistroChamada = {};
-          // Fila de auditoria cheia: a chamada não executa e fica só no log, sem crescer a fila.
-          const recusada = d.auditoria.cheia();
-          let outcome: LinhaAuditoria['outcome'] = 'ok';
-          let codigo: string | undefined;
-          const linha = (o: LinhaAuditoria['outcome'], errorCode?: string) =>
-            linhaAuditoria(f, token, args, d.chaves.auditoriaHmac, {
-              targetType: registro.targetType,
-              targetId: registro.targetId,
-              planId: registro.planId,
-              idempotencyKeyHash: registro.idempotencyKeyHash,
-              outcome: o,
-              requestId,
-              latencyMs: Math.round(performance.now() - inicio),
-              ...(errorCode ? { errorCode } : {}),
-            });
-          const ctx: ContextoFerramenta = {
-            ...token,
-            escopos,
+  const servidor = new McpServer({ name: 'resgata-mcp', version: d.versao });
+  const token = extraDoToken(authInfo?.extra);
+  if (!authInfo || !token) return servidor;
+  const escopos = new Set(authInfo.scopes);
+  for (const f of d.ferramentas) {
+    if (!visivel(f, escopos, d)) continue;
+    servidor.registerTool(
+      f.nome,
+      {
+        title: f.titulo,
+        description: f.descricao,
+        inputSchema: f.entrada,
+        outputSchema: f.saida,
+        annotations: f.anotacoes,
+      },
+      async (args: Record<string, unknown>) => {
+        const requestId = randomUUID();
+        const inicio = performance.now();
+        const registro: RegistroChamada = {};
+        // Fila de auditoria cheia: a chamada não executa e fica só no log, sem crescer a fila.
+        const recusada = d.auditoria.cheia();
+        let outcome: LinhaAuditoria['outcome'] = 'ok';
+        let codigo: string | undefined;
+        const linha = (o: LinhaAuditoria['outcome'], errorCode?: string) =>
+          linhaAuditoria(f, token, args, d.chaves.auditoriaHmac, {
+            targetType: registro.targetType,
+            targetId: registro.targetId,
+            planId: registro.planId,
+            idempotencyKeyHash: registro.idempotencyKeyHash,
+            outcome: o,
             requestId,
-            log: d.log,
-            limites: d.limites,
-            efeitosLigados: d.efeitosLigados,
-            transcricoesLigadas: d.transcricoesLigadas,
-            chaves: d.chaves,
-            catalogo: { ferramentas: d.ferramentas, desligadas: d.desligadas },
-            provedores: d.provedores ?? PROVEDORES_PADRAO,
-            registro,
-            agora,
-            chamar: (p) => d.v2.chamar({ ...p, grantId: token.grantId, requestId, escopos: f.escopos }),
-            antesDoEfeito: () => d.auditoria.registrarAgora(linha('accepted')),
-          };
-          try {
-            if (recusada) {
-              throw new ErroV2('ocupado', 'auditoria sobrecarregada; nada foi executado', { tentarNovamenteEmS: 5 });
-            }
-            const saida = f.saida.parse(await f.executar(args, ctx));
-            const texto = JSON.stringify(saida);
-            if (Buffer.byteLength(texto) > RESPOSTA_MAXIMA_BYTES) {
-              throw new ErroV2('invalido', 'resposta grande demais; filtre mais ou pagine com limite menor');
-            }
-            outcome = registro.outcome ?? 'ok';
-            return { content: [{ type: 'text', text: texto }], structuredContent: saida };
-          } catch (e) {
-            const erro = paraErro(e, requestId);
-            if (!(e instanceof ErroV2)) d.log.error('ferramenta.falha', { request_id: requestId, ferramenta: f.nome });
-            codigo = erro.codigo;
-            outcome = NEGADOS.has(erro.codigo) ? 'denied' : 'error';
-            return {
-              isError: true,
-              content: [{ type: 'text', text: JSON.stringify({ erro }) }],
-              structuredContent: { erro },
-            };
-          } finally {
-            // Sempre a linha final (ok, replayed ou error), com o mesmo requestId da `accepted` gravada antes do efeito.
-            if (!recusada) d.auditoria.registrar(linha(outcome, codigo));
-            d.log.info('mcp.tool_call', {
-              request_id: requestId,
-              grant_id: token.grantId,
-              ferramenta: f.nome,
-              resultado: outcome,
-              codigo,
-              latencia_ms: Math.round(performance.now() - inicio),
-              params: paramsAuditaveis(args, f.paramsAuditaveis, d.chaves.auditoriaHmac),
-            });
+            latencyMs: Math.round(performance.now() - inicio),
+            ...(errorCode ? { errorCode } : {}),
+          });
+        const ctx: ContextoFerramenta = {
+          ...token,
+          escopos,
+          requestId,
+          log: d.log,
+          limites: d.limites,
+          efeitosLigados: d.efeitosLigados,
+          transcricoesLigadas: d.transcricoesLigadas,
+          chaves: d.chaves,
+          catalogo: { ferramentas: d.ferramentas, desligadas: d.desligadas },
+          provedores: d.provedores ?? PROVEDORES_PADRAO,
+          registro,
+          agora,
+          chamar: (p) => d.v2.chamar({ ...p, grantId: token.grantId, requestId, escopos: f.escopos }),
+          antesDoEfeito: () => d.auditoria.registrarAgora(linha('accepted')),
+        };
+        try {
+          if (recusada) {
+            throw new ErroV2('ocupado', 'auditoria sobrecarregada; nada foi executado', { tentarNovamenteEmS: 5 });
           }
-        },
-      );
-    }
-    return servidor;
-  });
+          const saida = f.saida.parse(await f.executar(args, ctx));
+          const texto = JSON.stringify(saida);
+          if (Buffer.byteLength(texto) > RESPOSTA_MAXIMA_BYTES) {
+            throw new ErroV2('invalido', 'resposta grande demais; filtre mais ou pagine com limite menor');
+          }
+          outcome = registro.outcome ?? 'ok';
+          return { content: [{ type: 'text', text: texto }], structuredContent: saida };
+        } catch (e) {
+          const erro = paraErro(e, requestId);
+          if (!(e instanceof ErroV2)) d.log.error('ferramenta.falha', { request_id: requestId, ferramenta: f.nome });
+          codigo = erro.codigo;
+          outcome = NEGADOS.has(erro.codigo) ? 'denied' : 'error';
+          return {
+            isError: true,
+            content: [{ type: 'text', text: JSON.stringify({ erro }) }],
+            structuredContent: { erro },
+          };
+        } finally {
+          // Sempre a linha final (ok, replayed ou error), com o mesmo requestId da `accepted` gravada antes do efeito.
+          if (!recusada) d.auditoria.registrar(linha(outcome, codigo));
+          d.log.info('mcp.tool_call', {
+            request_id: requestId,
+            grant_id: token.grantId,
+            ferramenta: f.nome,
+            resultado: outcome,
+            codigo,
+            latencia_ms: Math.round(performance.now() - inicio),
+            params: paramsAuditaveis(args, f.paramsAuditaveis, d.chaves.auditoriaHmac),
+          });
+        }
+      },
+    );
+  }
+  return servidor;
 }

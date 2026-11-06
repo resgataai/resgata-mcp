@@ -13,6 +13,7 @@
     "prepare": "git config core.hooksPath .githooks",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/principal.js",
+    "start:local": "node dist/local/principal.js",
     "dev:demo": "MCP_MODO=demo bun src/principal.ts",
     "lint": "biome check .",
     "tipos": "tsc --noEmit",
