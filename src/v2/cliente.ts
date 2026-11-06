@@ -27,7 +27,7 @@ export type OpcoesClienteV2 = {
   timeoutMs?: number;
 };
 
-type TokenGrant = { token: string; venceEm: number; escopos: ReadonlySet<string> };
+export type TokenGrant = { token: string; venceEm: number; escopos: ReadonlySet<string> };
 type EstadoGrant = { status?: string; scopes?: string[]; upstreamCiphertext?: string };
 
 /** Papéis do realm no access token do Keycloak (recebido direto do IdP por TLS: só lê o payload). */
@@ -117,8 +117,6 @@ export function erroDaV2(status: number, corpo: unknown, cabecalhos: Headers, re
  */
 export function criarClienteV2(o: OpcoesClienteV2): ClienteV2 {
   const agora = o.agora ?? Date.now;
-  const timeoutMs = o.timeoutMs ?? 20_000;
-  const operacoes = new Map((o.manifesto ?? carregarManifesto()).operations.map((op) => [op.operationId, op]));
   const tokens = new Map<string, TokenGrant>();
   const emCurso = new Map<string, Promise<TokenGrant>>();
 
@@ -179,6 +177,20 @@ export function criarClienteV2(o: OpcoesClienteV2): ClienteV2 {
     }
     return p;
   };
+
+  return criarClienteOperacoes(o, tokenDoGrant, (grantId) => {
+    tokens.delete(grantId);
+  });
+}
+
+/** Mesmo executor/allowlist para grants pessoais e identidade de máquina. */
+export function criarClienteOperacoes(
+  o: Pick<OpcoesClienteV2, 'baseUrl' | 'limites' | 'log' | 'manifesto' | 'timeoutMs'>,
+  tokenDoGrant: (grantId: string) => Promise<TokenGrant>,
+  invalidarToken: (grantId: string) => void = () => {},
+): ClienteV2 {
+  const timeoutMs = o.timeoutMs ?? 20_000;
+  const operacoes = new Map((o.manifesto ?? carregarManifesto()).operations.map((op) => [op.operationId, op]));
 
   const montarCaminho = (op: OperacaoV2, valores: PedidoV2['caminho']) =>
     op.path.replace(/\{([^}]+)\}/g, (_m, nome: string) => {
@@ -249,7 +261,7 @@ export function criarClienteV2(o: OpcoesClienteV2): ClienteV2 {
               replay: r.headers.get('idempotent-replayed') === 'true',
             };
           }
-          if (r.status === 401) tokens.delete(p.grantId);
+          if (r.status === 401) invalidarToken(p.grantId);
           o.log.warn('v2.erro', { request_id: p.requestId, operacao: op.operationId, status: r.status });
           throw erroDaV2(r.status, dados, r.headers, p.requestId);
         }

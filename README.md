@@ -68,6 +68,8 @@ Detalhes e como reportar uma vulnerabilidade: [SECURITY.md](SECURITY.md).
 
 ## Instalação
 
+Para uso restrito a um Mac autorizado, existe também o [modo local por identidade da máquina](docs/LOCAL.md), sem depender do servidor HTTP remoto. Ele exige provisionamento pelo administrador e mantém o gate de acesso da API.
+
 Veja [INSTALAR.md](INSTALAR.md). Resumo, para quando o servidor estiver no ar:
 
 ```bash
