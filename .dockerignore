@@ -9,3 +9,4 @@ coverage
 *.log
 test
 docs
+.nomes-proibidos

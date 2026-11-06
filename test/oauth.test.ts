@@ -87,6 +87,7 @@ async function montar() {
     criarApp({
       urlPublica: url,
       recurso: `${url}/mcp`,
+      hostsPermitidos: ['127.0.0.1'],
       saltosProxy: 0,
       autorizacao: as,
       mcp: criarHandlerMcp({
@@ -96,7 +97,12 @@ async function montar() {
         efeitosLigados: false,
         transcricoesLigadas: false,
         v2: clienteV2Pendente(),
-        auditoria: { registrar: () => {}, registrarAgora: async () => {}, esvaziar: async () => {} },
+        auditoria: {
+          registrar: () => {},
+          cheia: () => false,
+          registrarAgora: async () => {},
+          esvaziar: async () => {},
+        },
         log: silencioso,
         limites,
         chaves: { plano: Buffer.alloc(32), cursor: Buffer.alloc(32), auditoriaHmac: Buffer.alloc(32) },

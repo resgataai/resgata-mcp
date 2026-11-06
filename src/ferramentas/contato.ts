@@ -128,7 +128,8 @@ const planejar = definir({
             sub: ctx.sub,
             grantId: ctx.grantId,
             ferramenta: EXECUTAR,
-            args: { userUuid: args.userUuid, channel: CANAL_V2, templateId: args.modeloId },
+            // `dia` (BRT da prévia) vai assinado no plano e entra na chave; nunca no corpo enviado à V2.
+            args: { userUuid: args.userUuid, channel: CANAL_V2, templateId: args.modeloId, dia: diaBrt(ctx.agora()) },
             repeticaoIntencional: args.repeticao_intencional,
           },
           ctx.chaves.plano,
@@ -202,7 +203,7 @@ const executar = definir({
       { sub: ctx.sub, grantId: ctx.grantId, ferramenta: EXECUTAR },
       ctx.agora(),
     );
-    const { userUuid = '', channel = CANAL_V2, templateId = '' } = plano.args;
+    const { userUuid = '', channel = CANAL_V2, templateId = '', dia = '' } = plano.args;
     ctx.registro.targetType = 'user';
     ctx.registro.targetId = userUuid;
     ctx.registro.planId = plano.jti;
@@ -212,17 +213,15 @@ const executar = definir({
         tentarNovamenteEmS: Math.ceil(limite.reiniciaEmMs / 1000),
       });
     }
-    const chave = chaveIdempotencia(
-      {
-        sub: ctx.sub,
-        ferramenta: EXECUTAR,
-        userUuid,
-        canal: channel,
-        templateId,
-        ...(plano.repeticaoIntencional ? { nonce: plano.jti } : {}),
-      },
-      ctx.agora(),
-    );
+    const chave = chaveIdempotencia({
+      sub: ctx.sub,
+      ferramenta: EXECUTAR,
+      userUuid,
+      canal: channel,
+      templateId,
+      dia,
+      ...(plano.repeticaoIntencional ? { nonce: plano.jti } : {}),
+    });
     ctx.registro.idempotencyKeyHash = hashChave(chave);
     await ctx.antesDoEfeito();
     const r = await ctx.chamar<Record<string, unknown>>({
@@ -235,7 +234,7 @@ const executar = definir({
     return envelope(ctx, {
       operacoes: ['adminIndividualSend'],
       dados: { envio: envio(r.dados), repetido: r.replay },
-      definicoes: { dia_da_chave: diaBrt(ctx.agora()) },
+      definicoes: { dia_da_chave: dia },
     });
   },
 });

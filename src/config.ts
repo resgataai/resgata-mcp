@@ -1,5 +1,6 @@
 import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import * as z from 'zod';
+import { esquemaProvedores, type No, PROVEDORES_PADRAO } from './mcp/provedores.js';
 
 /** Host público de produção. Em modo demo o processo recusa se apresentar com ele. */
 export const HOST_PRODUCAO = 'https://mcp.resgata.ai';
@@ -19,25 +20,26 @@ const chave32 = z
   .regex(/^[A-Za-z0-9_-]{43}$/, 'precisa ser 32 bytes em base64url (43 caracteres, sem padding)')
   .transform((v) => Buffer.from(v, 'base64url'));
 
-const jwks = z
-  .string()
-  .transform((v, ctx) => {
-    try {
-      return JSON.parse(v) as unknown;
-    } catch {
-      ctx.addIssue({ code: 'custom', message: 'não é JSON' });
-      return z.NEVER;
-    }
-  })
-  .pipe(
-    z.object({
-      keys: z
-        .array(
-          z.object({ kty: z.literal('EC'), crv: z.literal('P-256'), d: z.string(), kid: z.string().min(1) }).loose(),
-        )
-        .min(1),
-    }),
-  );
+const json = <T extends z.ZodType>(esquema: T) =>
+  z
+    .string()
+    .transform((v, ctx) => {
+      try {
+        return JSON.parse(v) as unknown;
+      } catch {
+        ctx.addIssue({ code: 'custom', message: 'não é JSON' });
+        return z.NEVER;
+      }
+    })
+    .pipe(esquema);
+
+const jwks = json(
+  z.object({
+    keys: z
+      .array(z.object({ kty: z.literal('EC'), crv: z.literal('P-256'), d: z.string(), kid: z.string().min(1) }).loose())
+      .min(1),
+  }),
+);
 
 const lista = z
   .string()
@@ -65,6 +67,8 @@ const comum = {
   MCP_DISABLED_TOOLS: lista,
   // Saltos de proxy confiáveis para req.ip (X-Forwarded-For); o manifest de produção define o valor da borda.
   MCP_TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+  // Nomes reais de provedores ficam fora do repositório público; vazio = padrão genérico.
+  MCP_PROVEDORES_JSON: z.preprocess((v) => v || undefined, json(esquemaProvedores).optional()),
 };
 
 const esquemaProducao = z.object({
@@ -114,6 +118,7 @@ export type Config = {
   transcricoesLigadas: boolean;
   ferramentasDesligadas: string[];
   saltosProxy: number;
+  provedores: readonly No[];
   /** Ausente em modo demo: o processo sobe a V2 falsa e preenche depois. */
   v2BaseUrl?: string;
   keycloak?: { issuer: string; clientId: string; clientSecret: string; svcClientId: string; svcClientSecret: string };
@@ -165,6 +170,7 @@ export function carregarConfig(env: NodeJS.ProcessEnv = process.env): Config {
       transcricoesLigadas: r.data.MCP_TRANSCRIPTS_ENABLED,
       ferramentasDesligadas: r.data.MCP_DISABLED_TOOLS,
       saltosProxy: r.data.MCP_TRUST_PROXY_HOPS,
+      provedores: r.data.MCP_PROVEDORES_JSON ?? PROVEDORES_PADRAO,
       chaves: chavesEfemeras(),
     };
   }
@@ -186,6 +192,7 @@ export function carregarConfig(env: NodeJS.ProcessEnv = process.env): Config {
     transcricoesLigadas: d.MCP_TRANSCRIPTS_ENABLED,
     ferramentasDesligadas: d.MCP_DISABLED_TOOLS,
     saltosProxy: d.MCP_TRUST_PROXY_HOPS,
+    provedores: d.MCP_PROVEDORES_JSON ?? PROVEDORES_PADRAO,
     v2BaseUrl: d.V2_API_BASE_URL,
     keycloak: {
       issuer: d.KEYCLOAK_ISSUER,

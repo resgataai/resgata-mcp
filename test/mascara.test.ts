@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { diaBrt } from '../src/mcp/envelope.js';
 import { mascararProfundo, mascararTextoLivre, textoExterno } from '../src/mcp/mascara.js';
 import { chaveIdempotencia } from '../src/mcp/plano.js';
-import { classificar, resolverApelido } from '../src/mcp/provedores.js';
+import { classificar, PROVEDORES_PADRAO, resolverApelido } from '../src/mcp/provedores.js';
+import { PROVEDORES_TESTE } from './ambiente.js';
 
 describe('máscara em texto livre', () => {
   it.each([
@@ -47,23 +49,35 @@ describe('máscara em texto livre', () => {
 
 describe('chave de idempotência pelo conteúdo', () => {
   const base = { sub: 's', ferramenta: 'contato_executar', userUuid: 'u', canal: 'EMAIL', templateId: '101' };
-  const dia = new Date('2026-11-06T15:00:00Z');
+  const dia = (iso: string) => diaBrt(new Date(iso));
   it('mesmo conteúdo no mesmo dia (BRT) → mesma chave; outro dia, modelo ou nonce → outra', () => {
-    const k = chaveIdempotencia(base, dia);
+    const k = chaveIdempotencia({ ...base, dia: dia('2026-11-06T15:00:00Z') });
     expect(k).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(chaveIdempotencia(base, new Date('2026-11-07T02:59:00Z'))).toBe(k); // 23h59 em São Paulo
-    expect(chaveIdempotencia(base, new Date('2026-11-07T03:00:00Z'))).not.toBe(k);
-    expect(chaveIdempotencia({ ...base, templateId: '102' }, dia)).not.toBe(k);
-    expect(chaveIdempotencia({ ...base, nonce: 'n' }, dia)).not.toBe(k);
+    expect(chaveIdempotencia({ ...base, dia: dia('2026-11-07T02:59:00Z') })).toBe(k); // 23h59 em São Paulo
+    expect(chaveIdempotencia({ ...base, dia: dia('2026-11-07T03:00:00Z') })).not.toBe(k);
+    expect(chaveIdempotencia({ ...base, dia: '2026-11-06', templateId: '102' })).not.toBe(k);
+    expect(chaveIdempotencia({ ...base, dia: '2026-11-06', nonce: 'n' })).not.toBe(k);
   });
 });
 
 describe('provedores', () => {
-  it('apelidos públicos resolvem para nós distintos', () => {
-    expect(resolverApelido('a Dataprev caiu?').map((n) => n.id)).toEqual(['dataprev']);
-    expect(resolverApelido('CEF').map((n) => n.id)).toEqual(['caixa']);
-    expect(resolverApelido('bmp e caixa').map((n) => n.id)).toEqual(['bmp', 'caixa']);
-    expect(resolverApelido('provedor qualquer')).toEqual([]);
+  it('apelidos configurados resolvem para nós distintos, como palavra inteira e sem acento', () => {
+    const ids = (texto: string) => resolverApelido(texto, PROVEDORES_TESTE).map((n) => n.id);
+    expect(ids('o Órgão X caiu?')).toEqual(['orgao_x']);
+    expect(ids('BCA')).toEqual(['banco_a']);
+    expect(ids('banco b e banco a')).toEqual(['banco_a', 'banco_b']);
+    expect(ids('o banco abc')).toEqual([]);
+    expect(ids('provedor qualquer')).toEqual([]);
+  });
+
+  it('o padrão público só tem nós genéricos', () => {
+    expect(PROVEDORES_PADRAO.map((n) => [n.id, n.relacao, n.codigos.length])).toEqual([
+      ['provedor_bancario', 'direto', 0],
+    ]);
+    expect(resolverApelido('o provedor bancário parou?', PROVEDORES_PADRAO).map((n) => n.id)).toEqual([
+      'provedor_bancario',
+    ]);
+    expect(resolverApelido('parceirox', PROVEDORES_PADRAO)).toEqual([]);
   });
 
   it('classificação: volume baixo é indeterminada; recusa de negócio não conta como falha', () => {

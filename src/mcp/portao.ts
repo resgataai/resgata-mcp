@@ -38,8 +38,8 @@ export function criarPortao(o: Opcoes): RequestHandler {
     const auth = res.locals.auth as AuthInfo | undefined;
     const token = extraDoToken(auth?.extra);
     if (!auth || !token) return next();
-    const mensagens = (Array.isArray(req.body) ? req.body : [req.body]) as Mensagem[];
-    const chamadas = mensagens
+    // Uma mensagem por requisição: o lote JSON-RPC já foi recusado com 400 em `servidor.ts`.
+    const chamadas = [req.body as Mensagem]
       .filter((m) => m?.method === 'tools/call' && typeof m.params?.name === 'string')
       .map((m) => ({
         f: porNome.get(String(m.params?.name)),

@@ -11,6 +11,7 @@ import { criarLimites, type Limites } from '../src/limites.js';
 import { criarLog } from '../src/log.js';
 import { type Auditoria, criarAuditoria } from '../src/mcp/auditoria.js';
 import { criarPortao } from '../src/mcp/portao.js';
+import { esquemaProvedores, type No } from '../src/mcp/provedores.js';
 import { criarHandlerMcp } from '../src/mcp/servidor-mcp.js';
 import { cifrar } from '../src/oauth/cifra.js';
 import type { ServidorAutorizacao } from '../src/oauth/tipos.js';
@@ -20,6 +21,20 @@ import { criarCredencialServico, urlTokenKeycloak } from '../src/v2/servico.js';
 import type { ClienteV2 } from '../src/v2/tipos.js';
 
 export const TODOS = ['resgata:read.bi', 'resgata:read.clientes', 'resgata:contact'];
+
+/** `MCP_PROVEDORES_JSON` sintético (nomes fictícios), no formato que a produção recebe. */
+export const PROVEDORES_TESTE: readonly No[] = esquemaProvedores.parse([
+  {
+    id: 'provedor_bancario',
+    rotulo: 'provedor bancário (integração direta)',
+    relacao: 'direto',
+    apelidos: ['bancario', 'parceirox'],
+    codigos: ['PROVEDOR_DEMO'],
+  },
+  { id: 'banco_a', rotulo: 'Banco A (a montante)', relacao: 'a_montante', apelidos: ['banco a', 'bca'] },
+  { id: 'banco_b', rotulo: 'Banco B (a montante)', relacao: 'a_montante', apelidos: ['banco b'] },
+  { id: 'orgao_x', rotulo: 'Órgão X (dependência indireta)', relacao: 'indireto', apelidos: ['orgao x'] },
+]);
 export const CLIENT_ID = 'https://claude.ai/oauth/claude-code-client-metadata';
 const REDIRECT = 'http://127.0.0.1:1/oauth/keycloak/callback';
 
@@ -41,7 +56,14 @@ export type Ambiente = {
 };
 
 export async function subirAmbiente(
-  o: { efeitos?: boolean; transcricoes?: boolean; desligadas?: string[] } = {},
+  o: {
+    efeitos?: boolean;
+    transcricoes?: boolean;
+    desligadas?: string[];
+    provedores?: readonly No[];
+    /** Relógio das ferramentas (prévia, plano e dia da chave). */
+    agora?: () => Date;
+  } = {},
 ): Promise<Ambiente> {
   const log = criarLog('silent');
   const v2 = await iniciarV2Falsa();
@@ -96,6 +118,7 @@ export async function subirAmbiente(
   const app = criarApp({
     urlPublica: 'http://localhost',
     recurso: 'http://localhost/mcp',
+    hostsPermitidos: ['localhost', '127.0.0.1'],
     saltosProxy: 0,
     autorizacao,
     mcp: criarHandlerMcp({
@@ -109,6 +132,8 @@ export async function subirAmbiente(
       log,
       limites,
       chaves,
+      provedores: o.provedores,
+      agora: o.agora,
     }),
     portaoMcp: criarPortao({
       ferramentas: FERRAMENTAS,

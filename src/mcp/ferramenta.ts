@@ -4,6 +4,7 @@ import type { Limites } from '../limites.js';
 import type { AllowlistParams, Registrador } from '../log.js';
 import type { PedidoV2, RespostaV2 } from '../v2/tipos.js';
 import type { Escopo } from './escopos.js';
+import type { No } from './provedores.js';
 
 /** Pedido de uma ferramenta à V2: grant, request id e escopos entram pelo contexto. */
 export type PedidoFerramenta = Omit<PedidoV2, 'grantId' | 'requestId' | 'escopos'>;
@@ -33,6 +34,8 @@ export type ContextoFerramenta = {
   transcricoesLigadas: boolean;
   chaves: { plano: Buffer; cursor: Buffer };
   catalogo: { ferramentas: readonly Ferramenta[]; desligadas: ReadonlySet<string> };
+  /** Nós de provedor do `diagnostico_provedor` (`MCP_PROVEDORES_JSON` ou o padrão genérico). */
+  provedores: readonly No[];
   /** Preenchido pela ferramenta para a auditoria (alvo, plano, hash da chave). */
   registro: RegistroChamada;
   chamar<T = unknown>(pedido: PedidoFerramenta): Promise<RespostaV2<T>>;

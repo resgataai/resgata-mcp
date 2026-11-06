@@ -4,7 +4,7 @@ import { AUDIENCIA_1, CAMPANHA_1, CLIENTE_1, MODELO_1, PROPOSTA_1, saudeComVolum
 import { FERRAMENTAS } from '../src/ferramentas/index.js';
 import { selarPlano } from '../src/mcp/plano.js';
 import { carregarManifesto } from '../src/v2/contrato.js';
-import { type Ambiente, subirAmbiente, TODOS, vazamentos } from './ambiente.js';
+import { type Ambiente, PROVEDORES_TESTE, subirAmbiente, TODOS, vazamentos } from './ambiente.js';
 
 let amb: Ambiente | undefined;
 afterEach(async () => {
@@ -194,45 +194,63 @@ describe('ferramentas contra a V2 falsa', () => {
 });
 
 describe('diagnostico_provedor', () => {
-  it('"Dataprev" resolve para a dependência indireta e não vira investigação do provedor bancário', async () => {
-    const a = await subir();
+  const diagnosticar = async (c: Awaited<ReturnType<Ambiente['mcp']>>, args: Record<string, unknown>) =>
+    dados((await c.callTool({ name: 'diagnostico_provedor', arguments: args })) as Resultado);
+
+  it('dependência indireta resolve para o próprio nó e não vira investigação do provedor bancário', async () => {
+    const a = await subir({ provedores: PROVEDORES_TESTE });
     const c = await a.mcp(await a.conectar('demo-usuario-1'));
-    const pede = dados(
-      (await c.callTool({ name: 'diagnostico_provedor', arguments: { provedor: 'Dataprev' } })) as Resultado,
-    );
+    const pede = await diagnosticar(c, { provedor: 'Órgão X' });
     expect(pede.pergunta).toMatch(/Confirma/);
-    expect(pede).toMatchObject({ resolucao: { no: 'dataprev', relacao: 'indireto' }, classificacao: null });
-    const r = dados(
-      (await c.callTool({
-        name: 'diagnostico_provedor',
-        arguments: { provedor: 'Dataprev', confirmado: true },
-      })) as Resultado,
-    );
+    expect(pede).toMatchObject({ resolucao: { no: 'orgao_x', relacao: 'indireto' }, classificacao: null });
+    const r = await diagnosticar(c, { provedor: 'Órgão X', confirmado: true });
     expect(r).toMatchObject({
-      resolucao: { no: 'dataprev', telemetria: 'nenhuma', codigo_plataforma: null },
+      resolucao: { no: 'orgao_x', telemetria: 'nenhuma', codigo_plataforma: null },
       classificacao: { valor: 'indeterminada', n: 0 },
       numeros: null,
     });
     expect(JSON.stringify(r)).not.toContain('PROVEDOR_DEMO"');
   });
 
-  it('Caixa e BMP são nós distintos; citar os dois pede escolha', async () => {
-    const a = await subir();
+  it('bancos a montante são nós distintos; citar os dois pede escolha', async () => {
+    const a = await subir({ provedores: PROVEDORES_TESTE });
     const c = await a.mcp(await a.conectar('demo-usuario-1'));
-    const caixa = dados(
-      (await c.callTool({
-        name: 'diagnostico_provedor',
-        arguments: { provedor: 'Caixa', confirmado: true },
-      })) as Resultado,
-    );
-    expect(caixa).toMatchObject({
-      resolucao: { no: 'caixa', relacao: 'a_montante' },
+    expect(await diagnosticar(c, { provedor: 'Banco A', confirmado: true })).toMatchObject({
+      resolucao: { no: 'banco_a', relacao: 'a_montante' },
       classificacao: { valor: 'indeterminada' },
     });
-    const dois = dados(
-      (await c.callTool({ name: 'diagnostico_provedor', arguments: { provedor: 'Caixa ou BMP?' } })) as Resultado,
+    expect(await diagnosticar(c, { provedor: 'Banco A ou Banco B?' })).toMatchObject({
+      resolucao: null,
+      classificacao: null,
+      pergunta: expect.stringMatching(/mais de um/),
+    });
+  });
+
+  it('apelido configurado do provedor direto acha a telemetria pelo código da V2', async () => {
+    const a = await subir({ provedores: PROVEDORES_TESTE });
+    const c = await a.mcp(await a.conectar('demo-usuario-1'));
+    expect(await diagnosticar(c, { provedor: 'ParceiroX', confirmado: true })).toMatchObject({
+      resolucao: { no: 'provedor_bancario', relacao: 'direto', codigo_plataforma: 'PROVEDOR_DEMO' },
+      numeros: { codigo: 'PROVEDOR_DEMO' },
+    });
+  });
+
+  it('sem MCP_PROVEDORES_JSON só há nós genéricos: o nome do parceiro não resolve', async () => {
+    const a = await subir();
+    const c = await a.mcp(await a.conectar('demo-usuario-1'));
+    expect(await diagnosticar(c, { provedor: 'ParceiroX' })).toMatchObject({
+      resolucao: null,
+      candidatos: ['PROVEDOR_DEMO'],
+      pergunta: expect.stringMatching(/Não reconheci/),
+    });
+    const generico = (await c.callTool({
+      name: 'diagnostico_provedor',
+      arguments: { provedor: 'provedor bancário', confirmado: true },
+    })) as Resultado;
+    expect(dados(generico)).toMatchObject({ resolucao: { no: 'provedor_bancario' }, numeros: null });
+    expect(generico.structuredContent?.lacunas).toContainEqual(
+      expect.objectContaining({ codigo: 'provedor_sem_dados_na_janela' }),
     );
-    expect(dois).toMatchObject({ resolucao: null, classificacao: null, pergunta: expect.stringMatching(/mais de um/) });
   });
 
   it('volume baixo (10 chamadas, 1 falha) → indeterminada; volume alto com falhas → degradado', async () => {
@@ -300,9 +318,41 @@ describe('contato por e-mail: prévia, plano e idempotência', () => {
     expect(envio?.corpo).toEqual({ userUuid: CLIENTE_1, channel: 'EMAIL', templateId: MODELO_1 });
     expect(envio?.cabecalhos['x-audit-reason']).toMatch(/^mcp:contato_executar:grant-[0-9a-f]+:[0-9a-f-]{36}$/);
     await a.auditoria.esvaziar();
+    // por execução: `accepted` antes do efeito e a linha final com o mesmo requestId
     const linhas = a.v2.auditoria.filter((l) => l.tool === 'contato_executar');
-    expect(linhas).toHaveLength(3);
-    expect(linhas.every((l) => l.outcome === 'accepted' && typeof l.idempotencyKeyHash === 'string')).toBe(true);
+    const porPedido = new Map<unknown, unknown[]>();
+    for (const l of linhas) porPedido.set(l.requestId, [...(porPedido.get(l.requestId) ?? []), l.outcome]);
+    expect([...porPedido.values()].map((o) => o.join(',')).sort()).toEqual([
+      'accepted,error',
+      'accepted,ok',
+      'accepted,replayed',
+    ]);
+    expect(linhas.find((l) => l.outcome === 'error')?.errorCode).toBe('em_andamento');
+    expect(linhas.every((l) => typeof l.idempotencyKeyHash === 'string')).toBe(true);
+  });
+
+  it('plano das 23h50 executado às 23h59 e de novo às 00h01 → mesma chave (dia da prévia) e 1 envio', async () => {
+    const relogio = { ms: Date.parse('2026-11-06T23:50:00-03:00') };
+    const a = await subir({ efeitos: true, agora: () => new Date(relogio.ms) });
+    let envios = 0;
+    a.v2.definir('adminIndividualSend', () => {
+      envios += 1;
+      return { status: 202, corpo: { testId: '00000000-0000-4000-9000-000000000778', status: 'accepted' } };
+    });
+    const c = await a.mcp(await a.conectar('demo-usuario-1'));
+    const p = await planejar(c);
+    const executar = async (iso: string) => {
+      relogio.ms = Date.parse(iso);
+      return (await c.callTool({ name: 'contato_executar', arguments: { plan_id: p?.plan_id } })) as Resultado;
+    };
+    expect(dados(await executar('2026-11-06T23:59:00-03:00'))).toMatchObject({ repetido: false });
+    const depois = await executar('2026-11-07T00:01:00-03:00');
+    expect(dados(depois)).toMatchObject({ repetido: true });
+    expect(depois.structuredContent?.fonte).toMatchObject({ definicoes: { dia_da_chave: '2026-11-06' } });
+    expect(envios).toBe(1);
+    const envio = a.v2.chamadas.filter((x) => x.operacao === 'adminIndividualSend');
+    expect(new Set(envio.map((x) => x.idempotencyKey)).size).toBe(1);
+    expect(envio[0]?.corpo).toEqual({ userUuid: CLIENTE_1, channel: 'EMAIL', templateId: MODELO_1 });
   });
 
   it('plano de outro usuário, adulterado ou vencido é recusado e nada é enviado', async () => {

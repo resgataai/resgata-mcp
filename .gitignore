@@ -5,3 +5,5 @@ coverage/
 .env.*
 *.log
 .DS_Store
+# Lista privada de nomes proibidos (scripts/nomes-proibidos.ts): nunca versionar.
+.nomes-proibidos

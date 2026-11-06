@@ -25,6 +25,8 @@ o servidor de login simulados). A imagem do `Dockerfile` sobe em modo demonstra�
 | `/oauth/revoke` revoga o grant na plataforma e o varredor encerra a sessão offline no servidor de login | idem | passa |
 | Papel `MCP_CONTACT` retirado no servidor de login: `contato_*` some na renovação seguinte e a chamada forçada recebe 403; `MCP_ACCESS` retirado: grant revogado e 401; usuário desativado: grant revogado | `test/ferramentas.test.ts` | passa |
 | `contato_planejar` + `contato_executar` concorrentes para o mesmo cliente e modelo: 1 envio | idem | passa |
+| Ferramenta com efeito grava `accepted` antes do efeito e a linha final (`ok`, `replayed` ou `error`) com o mesmo `request_id`; plano das 23h50 executado às 23h59 e de novo às 00h01: mesma chave (dia da prévia), 1 envio | idem | passa |
+| Lote JSON-RPC em `/mcp` → 400 sem executar nada; fila de auditoria cheia → `ocupado` sem executar e nenhuma linha descartada; `Host` fora da lista → 421; `/oauth/token` limitado por cliente + credencial, não por IP | `test/servidor.test.ts` | passa |
 
 Rodar: `bun run gate` (inclui os testes acima).
 
@@ -38,7 +40,7 @@ Bearer; depois `npx @modelcontextprotocol/conformance@0.1.16 server --url <ender
 |---|---|---|
 | `server-initialize`, `ping`, `tools-list` | passa | |
 | `server-sse-polling` | 0 falhas, 3 avisos | o servidor não usa sessão nem SSE retomável (sem estado por desenho) |
-| `dns-rebinding-protection` | 1 de 2 | o servidor não confere o cabeçalho `Host`; em produção só o host público chega ao serviço, e `/mcp` sempre exige Bearer |
+| `dns-rebinding-protection` | passa (2 de 2) | o servidor confere o cabeçalho `Host` (host de `MCP_PUBLIC_URL`; no modo demonstração, `localhost` e `127.0.0.1`) e responde 421 aos outros |
 | `tools-call-*`, `json-schema-2020-12`, `logging-set-level`, `completion-complete`, `resources-*`, `prompts-*` | não se aplica | exigem as ferramentas de teste do servidor de referência ou capacidades que este servidor não anuncia |
 
 ## 2. O que ainda não foi provado

@@ -82,6 +82,37 @@ describe('configuração', () => {
     );
   });
 
+  it('MCP_PROVEDORES_JSON substitui o padrão genérico; inválido derruba a subida sem ecoar valores', () => {
+    expect(carregarConfig(producao()).provedores.map((n) => n.id)).toEqual(['provedor_bancario']);
+    expect(carregarConfig({ ...producao(), MCP_PROVEDORES_JSON: '' }).provedores.map((n) => n.id)).toEqual([
+      'provedor_bancario',
+    ]);
+    const no = { id: 'banco_x', rotulo: 'Banco X', relacao: 'direto', apelidos: ['parceirox'], codigos: ['PX_1'] };
+    expect(carregarConfig({ ...producao(), MCP_PROVEDORES_JSON: JSON.stringify([no]) }).provedores).toEqual([
+      { ...no, codigos: ['px_1'] },
+    ]);
+    expect(carregarConfig({ MCP_MODO: 'demo', MCP_PROVEDORES_JSON: JSON.stringify([no]) }).provedores).toHaveLength(1);
+    for (const ruim of [
+      '{parceirox',
+      '[]',
+      JSON.stringify([{ ...no, relacao: 'parceirox' }]),
+      JSON.stringify([{ ...no, apelidos: ['--'] }]),
+      JSON.stringify([no, no]),
+      JSON.stringify([{ ...no, extra: 'parceirox' }]),
+    ]) {
+      const erro = (() => {
+        try {
+          carregarConfig({ ...producao(), MCP_PROVEDORES_JSON: ruim });
+        } catch (e) {
+          return e as Error;
+        }
+      })();
+      expect(erro, ruim).toBeInstanceOf(ErroDeConfiguracao);
+      expect(erro?.message).toContain('MCP_PROVEDORES_JSON');
+      expect(erro?.message).not.toContain('parceirox');
+    }
+  });
+
   it('modo desconhecido é recusado', () => {
     expect(() => carregarConfig({ MCP_MODO: 'teste' })).toThrow(ErroDeConfiguracao);
   });

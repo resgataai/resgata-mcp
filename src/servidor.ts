@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 import {
   type AuthInfo,
@@ -8,7 +8,7 @@ import {
 } from '@modelcontextprotocol/server';
 import express, { type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import { Counter, collectDefaultMetrics, Registry } from 'prom-client';
-import type { Limites } from './limites.js';
+import type { LimiteJanela, Limites } from './limites.js';
 import type { Registrador } from './log.js';
 import { ESCOPO_MINIMO } from './mcp/escopos.js';
 import { extraDoToken, type ServidorAutorizacao } from './oauth/tipos.js';
@@ -27,6 +27,8 @@ export function dependenciaHttp(nome: string, url: string): Dependencia {
 export type DependenciasServidor = {
   urlPublica: string;
   recurso: string;
+  /** Hosts aceitos no cabeçalho `Host` (sem porta): o de `MCP_PUBLIC_URL`; no modo demo, também os de loopback. */
+  hostsPermitidos: readonly string[];
   saltosProxy: number;
   autorizacao: ServidorAutorizacao;
   mcp: McpHttpHandler;
@@ -115,6 +117,31 @@ export function criarApp(d: DependenciasServidor) {
     res.type(registro.contentType).send(await registro.metrics());
   });
 
+  // DNS rebinding: só o host público (e loopback no modo demo). Sondas e /metrics ficam acima, sem esta checagem,
+  // porque o kubelet, o health check do balanceador e o coletor chamam pelo IP do pod.
+  const hosts = new Set(d.hostsPermitidos.map((h) => h.toLowerCase()));
+  app.use((req, res, next) => {
+    if (hosts.has((req.headers.host ?? '').toLowerCase().replace(/:\d+$/, ''))) return next();
+    res.status(421).json({ erro: { codigo: 'host_invalido', mensagem: 'host não atendido por este servidor' } });
+  });
+
+  /** 429 com `Retry-After` quando a chave passou do limite na janela. */
+  const limitar =
+    (
+      nome: string,
+      limite: LimiteJanela,
+      chave: (req: Request, res: Response) => string,
+      corpo: object,
+    ): RequestHandler =>
+    (req, res, next) => {
+      const r = limite.consumir(chave(req, res));
+      if (r.ok) return next();
+      limitados.inc({ limite: nome });
+      res.setHeader('retry-after', String(Math.ceil(r.reiniciaEmMs / 1000)));
+      res.status(429).json(corpo);
+    };
+  const muitas = { error: 'too_many_requests', error_description: 'muitas tentativas; aguarde e tente de novo' };
+
   const urlPrm = `${d.urlPublica}/.well-known/oauth-protected-resource/mcp`;
   app.get('/.well-known/oauth-protected-resource/mcp', (_req, res) => {
     res.json({
@@ -125,16 +152,18 @@ export function criarApp(d: DependenciasServidor) {
     });
   });
 
-  // Limite por IP só em /oauth/* (tráfego de navegador); nunca em /mcp, que chega por IPs compartilhados.
-  app.use('/oauth', (req, res, next) => {
-    const r = d.limites.oauthPorIp.consumir(req.ip ?? 'desconhecido');
-    if (r.ok) return next();
-    limitados.inc({ limite: 'oauth_ip' });
-    res.setHeader('retry-after', String(Math.ceil(r.reiniciaEmMs / 1000)));
-    res
-      .status(429)
-      .json({ error: 'too_many_requests', error_description: 'muitas tentativas; aguarde e tente de novo' });
-  });
+  // Limite por IP só nas rotas de navegador. /mcp, o token e a revogação chegam dos servidores dos clientes de IA por
+  // IPs compartilhados: token e revogação contam por cliente + credencial (um grant), /mcp por grant.
+  app.use(
+    ['/oauth/authorize', '/oauth/interacao', '/oauth/keycloak/callback'],
+    limitar('oauth_ip', d.limites.oauthPorIp, (req) => req.ip ?? 'desconhecido', muitas),
+  );
+  app.use(
+    ['/oauth/token', '/oauth/revoke'],
+    // O oidc-provider usa o corpo já lido (Buffer) e o interpreta como faria com o fluxo; avisa uma vez no console.
+    express.raw({ type: 'application/x-www-form-urlencoded', limit: '56kb' }),
+    limitar('oauth_credencial', d.limites.oauthPorCredencial, chaveCredencial, muitas),
+  );
 
   app.use(d.autorizacao.rotas);
 
@@ -158,15 +187,19 @@ export function criarApp(d: DependenciasServidor) {
         res.status(r.status).send(Buffer.from(await r.arrayBuffer()));
       }
     },
-    (_req, res, next) => {
-      const grantId = extraDoToken((res.locals.auth as AuthInfo).extra)?.grantId;
-      const r = d.limites.porGrant.consumir(grantId ?? 'sem-grant');
-      if (r.ok) return next();
-      limitados.inc({ limite: 'grant' });
-      res.setHeader('retry-after', String(Math.ceil(r.reiniciaEmMs / 1000)));
-      res.status(429).json({ erro: { codigo: 'limite', mensagem: 'limite de chamadas por minuto atingido' } });
-    },
+    limitar('grant', d.limites.porGrant, (_req, res) => extraDoToken(res.locals.auth?.extra)?.grantId ?? 'sem-grant', {
+      erro: { codigo: 'limite', mensagem: 'limite de chamadas por minuto atingido' },
+    }),
     express.json({ limit: '1mb' }),
+    // Lote JSON-RPC saiu do MCP em 2025-06-18: aceitá-lo faria uma requisição valer N chamadas no limite por grant.
+    (req, res, next) => {
+      if (!Array.isArray(req.body)) return next();
+      res.status(400).json({
+        jsonrpc: '2.0',
+        id: null,
+        error: { code: -32600, message: 'lote JSON-RPC não é aceito: envie uma mensagem por requisição' },
+      });
+    },
     d.portaoMcp ?? ((_req, _res, next) => next()),
     async (req, res, next) => {
       try {
@@ -185,11 +218,24 @@ export function criarApp(d: DependenciasServidor) {
   });
 
   app.use((e: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    // Corpo grande demais ou malformado (leitores de corpo) é erro de quem chamou: devolve o 4xx, não um 500.
+    const status = (e as { status?: unknown })?.status;
+    if (typeof status === 'number' && status >= 400 && status < 500) {
+      if (!res.headersSent) res.status(status).json({ erro: { codigo: 'invalido', request_id: res.locals.requestId } });
+      return;
+    }
     d.log.error('http.erro', { request_id: res.locals.requestId, codigo: (e as Error)?.name ?? 'Error' });
     if (!res.headersSent) res.status(500).json({ erro: { codigo: 'erro_interno', request_id: res.locals.requestId } });
   });
 
   return app;
+}
+
+/** Cliente + hash da credencial (refresh, código ou token a revogar): o limite cai num grant, não num IP. */
+function chaveCredencial(req: Request): string {
+  const f = new URLSearchParams(Buffer.isBuffer(req.body) ? req.body.toString() : '');
+  const credencial = f.get('refresh_token') ?? f.get('code') ?? f.get('token') ?? '';
+  return `${f.get('client_id') ?? ''}|${createHash('sha256').update(credencial).digest('base64url')}`;
 }
 
 /** Rótulo fixo para métricas e log: nunca o caminho cru (pode trazer lixo de quem chama). */

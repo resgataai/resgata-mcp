@@ -3,11 +3,13 @@ import { envelope, horaBrt, type Lacuna, saidaEnvelope } from '../mcp/envelope.j
 import { textoExterno } from '../mcp/mascara.js';
 import {
   classificar,
-  NO_PROVEDOR_DIRETO as DIRETO,
-  ehProvedorDireto,
+  NO_SEM_CADASTRO,
   type No,
+  noDoCodigo,
+  type Relacao,
   resolverApelido,
   type Snapshot,
+  TELEMETRIA,
   VOLUME_MINIMO,
 } from '../mcp/provedores.js';
 import { definir, LEITURA, lista, nn, num, obj, sn, str } from './comum.js';
@@ -41,6 +43,23 @@ const provedor = (p: Record<string, unknown>) => ({
   p95_ms: num(obj(p.latencyMs).p95),
   ultimo_evento: horaBrt(p.lastEventAt),
 });
+/** Nó sem números na janela: banco a montante e dependência indireta nunca viram investigação do provedor direto. */
+const SEM_TELEMETRIA: Record<Relacao, Lacuna> = {
+  direto: {
+    codigo: 'provedor_sem_dados_na_janela',
+    mensagem: 'Nenhum provedor da janela corresponde a este nó; veja os códigos em diagnostico_saude.',
+  },
+  a_montante: {
+    codigo: 'banco_a_montante_sem_telemetria',
+    mensagem:
+      'Banco a montante: só aparece agregado na saúde do provedor bancário; detalhe por operação no incremento 4.',
+  },
+  indireto: {
+    codigo: 'dependencia_sem_telemetria',
+    mensagem: 'Dependência indireta: a plataforma não mede chamadas a ela.',
+  },
+};
+
 const dependencia = z.strictObject({ status: sn, latencia_ms: nn, detalhe: sn, disjuntor: sn });
 const lerDependencia = (d: unknown) => {
   const v = obj(d);
@@ -97,13 +116,13 @@ const saude = definir({
 const provedorDiag = definir({
   nome: 'diagnostico_provedor',
   titulo: 'O que está acontecendo no provedor',
-  descricao: `Situação de um provedor com classificação calculada no servidor (normal, degradado, indisponivel ou indeterminada), volume (n), confiança e evidências. Abaixo de ${VOLUME_MINIMO} chamadas na janela a classificação é "indeterminada". Resolve apelidos para nós distintos (provedor bancário direto; bancos a montante observados por ele; Dataprev, dependência indireta sem telemetria) e pede confirmação antes de investigar um apelido. Não afirme causa fora de "classificacao". Sem busca por texto e sem CPF.`,
+  descricao: `Situação de um provedor com classificação calculada no servidor (normal, degradado, indisponivel ou indeterminada), volume (n), confiança e evidências. Abaixo de ${VOLUME_MINIMO} chamadas na janela a classificação é "indeterminada". Resolve nomes e apelidos configurados para nós distintos (provedor bancário direto; bancos a montante observados por ele; dependências indiretas, sem telemetria) e pede confirmação antes de investigar um apelido. Não afirme causa fora de "classificacao". Sem busca por texto e sem CPF.`,
   escopos: ESCOPO,
   operacoes: ['health_1'],
   paramsAuditaveis: { provedor: 'claro', janela_minutos: 'claro', confirmado: 'claro' },
   anotacoes: LEITURA,
   efeito: false,
-  exemplos: ['Por que o provedor bancário parou de simular hoje?', 'A Dataprev está fora?'],
+  exemplos: ['Por que o provedor bancário parou de simular hoje?', 'O banco a montante está fora?'],
   entrada: z.strictObject({
     provedor: z.string().min(2).max(60).describe('nome, apelido ou código do provedor'),
     janela_minutos: janelaMinutos,
@@ -144,8 +163,8 @@ const provedorDiag = definir({
       (s) => String(s.providerCode ?? '').toLowerCase() === args.provedor.trim().toLowerCase(),
     );
     const nos = exato
-      ? [ehProvedorDireto(String(exato.providerCode)) ? DIRETO : { ...DIRETO, rotulo: 'provedor (integração direta)' }]
-      : resolverApelido(args.provedor);
+      ? [noDoCodigo(String(exato.providerCode), ctx.provedores) ?? NO_SEM_CADASTRO]
+      : resolverApelido(args.provedor, ctx.provedores);
     const base = { pergunta: null, resolucao: null, candidatos: [] as string[], classificacao: null, numeros: null };
     const lacunas: Lacuna[] = [];
 
@@ -165,13 +184,13 @@ const provedorDiag = definir({
     const no = nos[0] as No;
     const snap =
       no.relacao === 'direto'
-        ? (exato ?? snapshots.find((s) => ehProvedorDireto(String(s.providerCode ?? ''))))
+        ? (exato ?? snapshots.find((s) => no.codigos.includes(String(s.providerCode ?? '').toLowerCase())))
         : undefined;
     const resolucao = {
       no: no.id,
       rotulo: no.rotulo,
       relacao: no.relacao,
-      telemetria: no.telemetria,
+      telemetria: TELEMETRIA[no.relacao],
       codigo_plataforma: snap ? str(snap.providerCode) : null,
     };
     if (!exato && !args.confirmado) {
@@ -188,20 +207,13 @@ const provedorDiag = definir({
     if (snap) {
       classificacao = classificar(snap as Snapshot, args.janela_minutos);
     } else {
-      // Banco a montante ou dependência indireta: sem telemetria própria, nunca investigar o provedor direto no lugar.
       classificacao = {
         valor: 'indeterminada',
         n: 0,
         confianca: 'nenhuma',
-        evidencias: [`${no.rotulo}: sem telemetria própria nesta versão`],
+        evidencias: [`${no.rotulo}: sem números na janela`],
       };
-      lacunas.push({
-        codigo: no.relacao === 'indireto' ? 'dependencia_sem_telemetria' : 'banco_a_montante_sem_telemetria',
-        mensagem:
-          no.relacao === 'indireto'
-            ? 'Dependência indireta: a plataforma não mede chamadas a ela.'
-            : 'Banco a montante: só aparece agregado na saúde do provedor bancário; detalhe por operação no incremento 4.',
-      });
+      lacunas.push(SEM_TELEMETRIA[no.relacao]);
     }
     return envelope(ctx, {
       operacoes: ['health_1'],

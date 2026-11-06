@@ -1,82 +1,97 @@
-import { createHash } from 'node:crypto';
+import * as z from 'zod';
 
 /**
- * Apelidos de provedor → nós distintos (DESENHO §7.1, `diagnostico_provedor`). O provedor bancário direto é guardado
- * só por hash (SHA-256 da palavra em minúsculas, sem acento): o repositório é público e não cita o parceiro (D22).
+ * Nós de provedor do `diagnostico_provedor` (DESENHO §7.1). O repositório é público: nomes de parceiros, apelidos e
+ * códigos na V2 chegam só por `MCP_PROVEDORES_JSON`, validado na subida; o código traz apenas nós genéricos.
  */
+export type Relacao = 'direto' | 'a_montante' | 'indireto';
 export type No = {
-  id: 'provedor_bancario' | 'caixa' | 'bmp' | 'dataprev';
+  id: string;
   rotulo: string;
-  relacao: 'direto' | 'a_montante' | 'indireto';
-  telemetria: 'propria' | 'via_provedor_bancario' | 'nenhuma';
+  relacao: Relacao;
+  /** Palavras ou expressões que resolvem para o nó (sem diferença de maiúscula ou acento). */
+  apelidos: readonly string[];
+  /** `providerCode` da V2 com a telemetria do nó (só `direto`), em minúsculas. */
+  codigos: readonly string[];
 };
 
-const NOS: Record<No['id'], No> = {
-  provedor_bancario: {
-    id: 'provedor_bancario',
-    rotulo: 'provedor bancário (integração direta)',
-    relacao: 'direto',
-    telemetria: 'propria',
-  },
-  caixa: {
-    id: 'caixa',
-    rotulo: 'Caixa (a montante, observada via provedor bancário)',
-    relacao: 'a_montante',
-    telemetria: 'via_provedor_bancario',
-  },
-  bmp: {
-    id: 'bmp',
-    rotulo: 'BMP (a montante, observado via provedor bancário)',
-    relacao: 'a_montante',
-    telemetria: 'via_provedor_bancario',
-  },
-  dataprev: {
-    id: 'dataprev',
-    rotulo: 'Dataprev (dependência indireta, sem telemetria própria)',
-    relacao: 'indireto',
-    telemetria: 'nenhuma',
-  },
+export const TELEMETRIA: Record<Relacao, 'propria' | 'via_provedor_bancario' | 'nenhuma'> = {
+  direto: 'propria',
+  a_montante: 'via_provedor_bancario',
+  indireto: 'nenhuma',
 };
 
-export const NO_PROVEDOR_DIRETO: No = NOS.provedor_bancario;
-
-/** Código do provedor direto na V2 (`providerCode`), por hash. */
-const CODIGO_DIRETO = 'a01590c0e4c6d38bb60f5cb07fe000d2194c48e7f6472f7958330f81bd2ec81e';
-const APELIDOS = new Map<string, No['id']>([
-  [CODIGO_DIRETO, 'provedor_bancario'],
-  ['dde444a9246a61775c0236a66036f6f2da51426d0a7b051ab29f600b39dbccdf', 'provedor_bancario'],
-  ['11f95e175d1fb49b4bae34edd8d9b1129525e9ae4614170946cadc2840a8d4ac', 'provedor_bancario'],
-  ...['caixa', 'cef'].map((p) => [hash(p), 'caixa'] as const),
-  ...['bmp'].map((p) => [hash(p), 'bmp'] as const),
-  ...['dataprev'].map((p) => [hash(p), 'dataprev'] as const),
-]);
-
-function hash(palavra: string): string {
-  return createHash('sha256').update(palavra).digest('hex');
-}
-
-function palavras(texto: string): string[] {
-  return (
+/** Texto em palavras sem acento, com espaço nas pontas: casa apelido só como palavra inteira. */
+const frase = (texto: string) =>
+  ` ${(
     texto
       .normalize('NFD')
       .replace(/\p{Diacritic}/gu, '')
       .toLowerCase()
       .match(/[a-z0-9]+/g) ?? []
-  );
-}
+  ).join(' ')} `;
+
+/** Formato de `MCP_PROVEDORES_JSON`: lista que substitui o padrão. */
+export const esquemaProvedores = z
+  .array(
+    z.strictObject({
+      id: z.string().regex(/^[a-z][a-z0-9_]{1,39}$/),
+      rotulo: z.string().min(2).max(120),
+      relacao: z.enum(['direto', 'a_montante', 'indireto']),
+      apelidos: z
+        .array(
+          z
+            .string()
+            .max(60)
+            .refine((a) => frase(a).trim() !== '', 'apelido sem letras nem números'),
+        )
+        .max(20)
+        .default([]),
+      codigos: z
+        .array(
+          z
+            .string()
+            .min(1)
+            .max(60)
+            .transform((c) => c.toLowerCase()),
+        )
+        .max(10)
+        .default([]),
+    }),
+  )
+  .min(1)
+  .max(30)
+  .refine((nos) => new Set(nos.map((n) => n.id)).size === nos.length, 'id repetido');
+
+/** Padrão público, genérico. */
+export const PROVEDORES_PADRAO: readonly No[] = [
+  {
+    id: 'provedor_bancario',
+    rotulo: 'provedor bancário (integração direta)',
+    relacao: 'direto',
+    apelidos: ['bancario'],
+    codigos: [],
+  },
+];
+
+/** Código da V2 sem nó configurado: tratado como provedor direto genérico. */
+export const NO_SEM_CADASTRO: No = {
+  id: 'provedor',
+  rotulo: 'provedor (integração direta)',
+  relacao: 'direto',
+  apelidos: [],
+  codigos: [],
+};
 
 /** Nós citados no texto, sem repetição (mais de um = pedir para escolher). */
-export function resolverApelido(texto: string): No[] {
-  const ids = new Set<No['id']>();
-  for (const p of palavras(texto)) {
-    const id = APELIDOS.get(hash(p));
-    if (id) ids.add(id);
-  }
-  return [...ids].map((id) => NOS[id]);
+export function resolverApelido(texto: string, nos: readonly No[]): No[] {
+  const t = frase(texto);
+  return nos.filter((n) => n.apelidos.some((a) => t.includes(frase(a))));
 }
 
-/** O `providerCode` da V2 é o do provedor bancário direto? */
-export const ehProvedorDireto = (codigo: string) => palavras(codigo).some((p) => hash(p) === CODIGO_DIRETO);
+/** Nó dono de um `providerCode` da V2. */
+export const noDoCodigo = (codigo: string, nos: readonly No[]) =>
+  nos.find((n) => n.codigos.includes(codigo.toLowerCase()));
 
 export type Snapshot = {
   providerCode: string;

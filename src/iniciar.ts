@@ -107,6 +107,7 @@ export async function iniciar(
     log,
     limites,
     chaves: { plano: config.chaves.plano, cursor: config.chaves.cursor, auditoriaHmac: config.chaves.auditoriaHmac },
+    provedores: config.provedores,
   });
   const portaoMcp = criarPortao({
     ferramentas: FERRAMENTAS,
@@ -121,6 +122,7 @@ export async function iniciar(
   const app = criarApp({
     urlPublica,
     recurso,
+    hostsPermitidos: [new URL(urlPublica).hostname, ...(config.modo === 'demo' ? ['localhost', '127.0.0.1'] : [])],
     saltosProxy: config.saltosProxy,
     autorizacao,
     mcp,

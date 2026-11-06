@@ -1,36 +1,51 @@
 // Nomes que não podem aparecer no repositório público (parceiros comerciais: os textos dizem "o provedor").
-// A lista guarda só SHA-256 de cada palavra em minúsculas, sem acento, para o próprio arquivo não citar o nome.
-// Acrescentar: printf '%s' nome | shasum -a 256
+// A lista é privada e nunca entra no repositório, nem como hash: um nome ou expressão por linha (# comenta), lida de
+// NOMES_PROIBIDOS_ARQUIVO ou, sem ela, de .nomes-proibidos na raiz (ignorado pelo git). Sem lista a checagem é pulada
+// com aviso; com NOMES_PROIBIDOS_OBRIGATORIO=1 (build de release) ou arquivo indicado e ausente, falta de lista é erro.
 //
 //   bun run nomes             árvore de trabalho (arquivos versionados e novos não ignorados)
 //   bun run nomes --staged    só o conteúdo preparado para commit (pre-commit)
 
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 
-const PROIBIDOS = new Set([
-  'a01590c0e4c6d38bb60f5cb07fe000d2194c48e7f6472f7958330f81bd2ec81e',
-  'dde444a9246a61775c0236a66036f6f2da51426d0a7b051ab29f600b39dbccdf',
-  '11f95e175d1fb49b4bae34edd8d9b1129525e9ae4614170946cadc2840a8d4ac',
-  '57eb56a2dfb733e1baaeae7da43882474be7753efd3ca9876c70b4f2f0c6b091',
-]);
-
-/** Separa camelCase, snake_case, domínios e caminhos em palavras simples. */
-export function palavras(texto: string): Set<string> {
+/** Separa camelCase, snake_case, domínios e caminhos em palavras simples, sem acento. */
+export function palavras(texto: string): string[] {
   const normal = texto
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase();
-  return new Set(normal.match(/[a-z0-9]+/g) ?? []);
+  return normal.match(/[a-z0-9]+/g) ?? [];
 }
 
-export function contemProibido(texto: string, proibidos: ReadonlySet<string> = PROIBIDOS): boolean {
-  for (const p of palavras(texto)) {
-    if (proibidos.has(createHash('sha256').update(p).digest('hex'))) return true;
+const frase = (texto: string) => ` ${palavras(texto).join(' ')} `;
+
+/**
+ * Algum nome da lista aparece no texto como palavra inteira (ou sequência de palavras, se tiver mais de uma)? O texto
+ * é lido com e sem a quebra de camelCase: pega `tokenParceirox` e também `ParceiroX`.
+ */
+export function contemProibido(texto: string, nomes: readonly string[]): boolean {
+  const formas = [frase(texto), frase(texto.toLowerCase())];
+  return nomes.some((n) => formas.some((t) => t.includes(frase(n.toLowerCase()))));
+}
+
+/** Linhas do arquivo da lista: sem comentários e sem linhas que não tenham letra ou número. */
+export const lerNomes = (texto: string) =>
+  texto
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => !l.startsWith('#') && palavras(l).length > 0);
+
+/** Lista do ambiente; `null` = pular (só fora do release). Lança quando a lista é obrigatória e falta. */
+export function listaDoAmbiente(env: NodeJS.ProcessEnv, padrao = '.nomes-proibidos'): string[] | null {
+  const arquivo = env.NOMES_PROIBIDOS_ARQUIVO || padrao;
+  const nomes = existsSync(arquivo) ? lerNomes(readFileSync(arquivo, 'utf8')) : [];
+  if (nomes.length > 0) return nomes;
+  if (env.NOMES_PROIBIDOS_OBRIGATORIO === '1' || env.NOMES_PROIBIDOS_ARQUIVO) {
+    throw new Error('lista de nomes proibidos ausente ou vazia (NOMES_PROIBIDOS_ARQUIVO); obrigatória aqui');
   }
-  return false;
+  return null;
 }
 
 function git(...args: string[]): string {
@@ -38,22 +53,34 @@ function git(...args: string[]): string {
 }
 
 if (import.meta.main) {
+  let nomes: string[] | null;
+  try {
+    nomes = listaDoAmbiente(process.env);
+  } catch (e) {
+    console.error(`nomes proibidos: ${(e as Error).message}`);
+    process.exit(1);
+  }
+  if (!nomes) {
+    console.warn(
+      'nomes proibidos: PULADO, sem lista local (.nomes-proibidos ou NOMES_PROIBIDOS_ARQUIVO). O build de release exige a lista.',
+    );
+    process.exit(0);
+  }
   const staged = process.argv.includes('--staged');
   const arquivos = staged
     ? git('diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z').split('\0').filter(Boolean)
     : git('ls-files', '-z', '--cached', '--others', '--exclude-standard').split('\0').filter(Boolean);
   const achados: string[] = [];
   for (const arquivo of arquivos) {
-    const nomeOk = !contemProibido(arquivo);
     let conteudo = '';
     if (staged) conteudo = git('show', `:${arquivo}`);
     else if (existsSync(arquivo)) conteudo = readFileSync(arquivo, 'utf8');
-    if (!nomeOk || contemProibido(conteudo)) achados.push(arquivo);
+    if (contemProibido(arquivo, nomes) || contemProibido(conteudo, nomes)) achados.push(arquivo);
   }
   if (achados.length > 0) {
     console.error('nome proibido no repositório público (use "o provedor"):');
     for (const a of achados) console.error(`  ${a}`);
     process.exit(1);
   }
-  console.log(`nomes proibidos: ok (${arquivos.length} arquivos)`);
+  console.log(`nomes proibidos: ok (${arquivos.length} arquivos, ${nomes.length} nomes)`);
 }

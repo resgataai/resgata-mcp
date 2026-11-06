@@ -7,6 +7,7 @@ import { type ClienteV2, ErroV2 } from '../v2/tipos.js';
 import type { Auditoria, LinhaAuditoria } from './auditoria.js';
 import { type ErroEnvelope, RESPOSTA_MAXIMA_BYTES } from './envelope.js';
 import type { ContextoFerramenta, Ferramenta, RegistroChamada } from './ferramenta.js';
+import { type No, PROVEDORES_PADRAO } from './provedores.js';
 
 export type DependenciasMcp = {
   versao: string;
@@ -19,6 +20,8 @@ export type DependenciasMcp = {
   log: Registrador;
   limites: Limites;
   chaves: { plano: Buffer; cursor: Buffer; auditoriaHmac: Buffer };
+  /** Padrão: `PROVEDORES_PADRAO` (só nós genéricos). */
+  provedores?: readonly No[];
   agora?: () => Date;
 };
 
@@ -110,7 +113,8 @@ export function criarHandlerMcp(d: DependenciasMcp): McpHttpHandler {
           const requestId = randomUUID();
           const inicio = performance.now();
           const registro: RegistroChamada = {};
-          let auditado = false;
+          // Fila de auditoria cheia: a chamada não executa e fica só no log, sem crescer a fila.
+          const recusada = d.auditoria.cheia();
           let outcome: LinhaAuditoria['outcome'] = 'ok';
           let codigo: string | undefined;
           const linha = (o: LinhaAuditoria['outcome'], errorCode?: string) =>
@@ -134,15 +138,16 @@ export function criarHandlerMcp(d: DependenciasMcp): McpHttpHandler {
             transcricoesLigadas: d.transcricoesLigadas,
             chaves: d.chaves,
             catalogo: { ferramentas: d.ferramentas, desligadas: d.desligadas },
+            provedores: d.provedores ?? PROVEDORES_PADRAO,
             registro,
             agora,
             chamar: (p) => d.v2.chamar({ ...p, grantId: token.grantId, requestId, escopos: f.escopos }),
-            antesDoEfeito: async () => {
-              await d.auditoria.registrarAgora(linha('accepted'));
-              auditado = true;
-            },
+            antesDoEfeito: () => d.auditoria.registrarAgora(linha('accepted')),
           };
           try {
+            if (recusada) {
+              throw new ErroV2('ocupado', 'auditoria sobrecarregada; nada foi executado', { tentarNovamenteEmS: 5 });
+            }
             const saida = f.saida.parse(await f.executar(args, ctx));
             const texto = JSON.stringify(saida);
             if (Buffer.byteLength(texto) > RESPOSTA_MAXIMA_BYTES) {
@@ -161,7 +166,8 @@ export function criarHandlerMcp(d: DependenciasMcp): McpHttpHandler {
               structuredContent: { erro },
             };
           } finally {
-            if (!auditado) d.auditoria.registrar(linha(outcome, codigo));
+            // Sempre a linha final (ok, replayed ou error), com o mesmo requestId da `accepted` gravada antes do efeito.
+            if (!recusada) d.auditoria.registrar(linha(outcome, codigo));
             d.log.info('mcp.tool_call', {
               request_id: requestId,
               grant_id: token.grantId,

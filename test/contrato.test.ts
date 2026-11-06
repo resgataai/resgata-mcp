@@ -1,7 +1,8 @@
-import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { contemProibido, palavras } from '../scripts/nomes-proibidos.js';
+import { contemProibido, lerNomes, listaDoAmbiente, palavras } from '../scripts/nomes-proibidos.js';
 import {
   CAMINHO_RECORTE,
   carregarManifesto,
@@ -58,21 +59,45 @@ describe('manifesto da V2 e drift', () => {
 });
 
 describe('nomes proibidos', () => {
+  const lista = lerNomes('# comentário\nParceiroX\nbanco fulano\n\n---\n');
+
   it('quebra camelCase, snake_case e domínios em palavras', () => {
-    expect(palavras('providerLogMessages api_cliente exemplo.com.br')).toEqual(
-      new Set(['provider', 'log', 'messages', 'api', 'cliente', 'exemplo', 'com', 'br']),
-    );
+    expect(palavras('providerLogMessages api_cliente exemplo.com.br')).toEqual([
+      'provider',
+      'log',
+      'messages',
+      'api',
+      'cliente',
+      'exemplo',
+      'com',
+      'br',
+    ]);
   });
 
-  it('texto neutro passa', () => {
-    expect(contemProibido('o provedor respondeu com atraso')).toBe(false);
-  });
-
-  it('acha a palavra pelo hash, também dentro de identificador', () => {
-    const lista = new Set([createHash('sha256').update('parceirox').digest('hex')]);
+  it('acha o nome como palavra inteira, também dentro de identificador; expressão só na sequência', () => {
+    expect(lista).toEqual(['ParceiroX', 'banco fulano']);
+    expect(contemProibido('o provedor respondeu com atraso', lista)).toBe(false);
     expect(contemProibido('const tokenParceiro = 1', lista)).toBe(false);
     expect(contemProibido('const tokenParceirox = 1', lista)).toBe(true);
     expect(contemProibido('const parceiroxToken = 1', lista)).toBe(true);
     expect(contemProibido('https://api.parceirox.com.br', lista)).toBe(true);
+    expect(contemProibido('a ParceiroX respondeu', lista)).toBe(true);
+    expect(contemProibido('o bancoFulano caiu', lista)).toBe(true);
+    expect(contemProibido('banco do fulano', lista)).toBe(false);
+  });
+
+  it('lista privada: sem lista pula fora do release; obrigatória ou indicada e ausente é erro', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'nomes-'));
+    const ausente = join(dir, 'nao-existe');
+    expect(listaDoAmbiente({}, ausente)).toBeNull();
+    expect(() => listaDoAmbiente({ NOMES_PROIBIDOS_OBRIGATORIO: '1' }, ausente)).toThrow(/obrigatória/);
+    expect(() => listaDoAmbiente({ NOMES_PROIBIDOS_ARQUIVO: ausente })).toThrow(/obrigatória/);
+    const arquivo = join(dir, 'lista');
+    writeFileSync(arquivo, '# só comentário\n');
+    expect(() => listaDoAmbiente({ NOMES_PROIBIDOS_ARQUIVO: arquivo })).toThrow(/vazia/);
+    writeFileSync(arquivo, 'parceirox\n');
+    expect(listaDoAmbiente({ NOMES_PROIBIDOS_ARQUIVO: arquivo, NOMES_PROIBIDOS_OBRIGATORIO: '1' })).toEqual([
+      'parceirox',
+    ]);
   });
 });

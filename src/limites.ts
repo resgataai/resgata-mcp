@@ -65,7 +65,10 @@ export const OPERACOES_ANALITICAS: ReadonlySet<string> = new Set([
 export type Limites = {
   porGrant: LimiteJanela;
   efeitosPorUsuario: LimiteJanela;
+  /** Rotas de navegador do OAuth (authorize, interação, callback do IdP). */
   oauthPorIp: LimiteJanela;
+  /** `/oauth/token` e `/oauth/revoke`: chegam de servidores com IP compartilhado, então a chave é cliente + credencial. */
+  oauthPorCredencial: LimiteJanela;
   analiticas: Semaforo;
 };
 
@@ -75,6 +78,7 @@ export function criarLimites(agora: () => number = Date.now): Limites {
     porGrant: new LimiteJanela(60, 60_000, agora),
     efeitosPorUsuario: new LimiteJanela(20, 86_400_000, agora),
     oauthPorIp: new LimiteJanela(30, 60_000, agora),
+    oauthPorCredencial: new LimiteJanela(10, 60_000, agora),
     analiticas: new Semaforo(4),
   };
 }

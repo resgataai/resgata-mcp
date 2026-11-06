@@ -22,8 +22,10 @@ export type LinhaAuditoria = {
 };
 
 export type Auditoria = {
-  /** Assíncrona (fila em memória); falha vira log `mcp.audit`, nunca derruba a resposta. */
+  /** Assíncrona (fila em memória) e nunca descarta; falha de envio vira log `mcp.audit`, nunca derruba a resposta. */
   registrar(linha: LinhaAuditoria): void;
+  /** Fila no limite: chamada nova é recusada com `ocupado` antes de executar (DESENHO §9: nenhuma linha some). */
+  cheia(): boolean;
   /** Espera o `201`. Ferramenta com efeito chama antes do efeito: falhou, não executa. */
   registrarAgora(linha: LinhaAuditoria): Promise<void>;
   /** Esvazia a fila (testes e desligamento). */
@@ -32,7 +34,10 @@ export type Auditoria = {
 
 const CAMINHO = '/v2/internal/mcp/audit/tool-calls';
 
-/** Uma linha por `tools/call`, inclusive negadas, pela credencial de serviço (`mcp:audit`). */
+/**
+ * Uma linha por `tools/call`, inclusive negadas, pela credencial de serviço (`mcp:audit`). A capacidade limita a
+ * admissão de chamadas novas (`cheia`), não a fila: a linha de uma chamada já admitida sempre entra.
+ */
 export function criarAuditoria(o: { servico: CredencialServico; log: Registrador; capacidade?: number }): Auditoria {
   const capacidade = o.capacidade ?? 1000;
   const fila: LinhaAuditoria[] = [];
@@ -56,19 +61,16 @@ export function criarAuditoria(o: { servico: CredencialServico; log: Registrador
         falhou(l, e);
       }
     }
+    // Aqui, e não num .finally(): linha registrada entre o fim do laço e o .finally ficaria parada na fila.
+    trabalhando = undefined;
   };
 
   return {
     registrar(l) {
-      if (fila.length >= capacidade) {
-        falhou(l, new ErroV2('ocupado', 'fila de auditoria cheia'));
-        return;
-      }
       fila.push(l);
-      trabalhando ??= drenar().finally(() => {
-        trabalhando = undefined;
-      });
+      trabalhando ??= drenar();
     },
+    cheia: () => fila.length >= capacidade,
     async registrarAgora(l) {
       try {
         await enviar(l);

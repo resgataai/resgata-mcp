@@ -41,20 +41,52 @@ Nenhum endereço tem valor padrão.
 | `MCP_EFFECTS_ENABLED` | `false` (padrão): ferramentas com efeito externo somem do catálogo |
 | `MCP_TRANSCRIPTS_ENABLED` | `false` (padrão): mensagens de atendimento ficam fora do contexto da IA (`atendimento_mensagens` responde `indisponivel_por_gate`) |
 | `MCP_DISABLED_TOOLS` | nomes de ferramentas desligadas, separados por vírgula |
-| `MCP_TRUST_PROXY_HOPS` | saltos de proxy confiáveis para o IP do cliente (padrão 0) |
+| `MCP_TRUST_PROXY_HOPS` | saltos de proxy confiáveis para o IP do cliente (padrão 0). **Em produção, defina com o número de saltos do balanceador de carga externo** (os endereços que ele acrescenta ao `X-Forwarded-For`): com 0, todas as requisições parecem vir do balanceador e o limite por IP das telas de login vira um limite global |
+| `MCP_PROVEDORES_JSON` | nós do `diagnostico_provedor` (lista JSON que substitui o padrão; vazio = padrão). Nomes reais de provedores, apelidos e códigos da V2 só chegam por aqui, nunca pelo código; o padrão público tem só o nó genérico "provedor bancário". Formato abaixo |
 | `PORT`, `LOG_LEVEL` | porta (8080) e nível de log (`info`) |
+
+Formato de `MCP_PROVEDORES_JSON` (valores fictícios; a subida recusa campo desconhecido, `id` repetido ou relação
+fora da lista, e a mensagem de erro cita só a variável e a regra):
+
+```json
+[
+  { "id": "provedor_bancario", "rotulo": "provedor bancário (integração direta)", "relacao": "direto",
+    "apelidos": ["nome do parceiro", "outro apelido"], "codigos": ["CODIGO_NA_V2"] },
+  { "id": "banco_a", "rotulo": "Banco A (a montante, observado via provedor bancário)", "relacao": "a_montante",
+    "apelidos": ["banco a"] },
+  { "id": "orgao_x", "rotulo": "Órgão X (dependência indireta, sem telemetria própria)", "relacao": "indireto",
+    "apelidos": ["orgao x"] }
+]
+```
+
+`relacao`: `direto` (telemetria própria, achada pelos `codigos` = `providerCode` da V2), `a_montante` (só agregado no
+provedor direto) ou `indireto` (sem telemetria). Apelidos casam como palavra inteira, sem diferença de maiúscula ou
+acento.
 
 ## Rotas
 
 | Rota | Função |
 |---|---|
-| `POST /mcp` | MCP sem sessão (2026-07-28 e 2025-11-25); exige Bearer do MCP; 60 chamadas/min por grant |
+| `POST /mcp` | MCP sem sessão (2026-07-28 e 2025-11-25); exige Bearer do MCP; 60 chamadas/min por grant; **uma mensagem JSON-RPC por requisição** (lote → 400, código -32600) |
 | `GET /.well-known/oauth-protected-resource/mcp` | metadados do recurso (RFC 9728) |
-| `/.well-known/oauth-authorization-server`, `/oauth/authorize`, `/oauth/token`, `/oauth/revoke`, `/oauth/jwks` | servidor de autorização (`oidc-provider`, só CIMD da lista fechada, sem DCR); 30 req/min por IP em `/oauth/*` |
+| `/.well-known/oauth-authorization-server`, `/oauth/authorize`, `/oauth/token`, `/oauth/revoke`, `/oauth/jwks` | servidor de autorização (`oidc-provider`, só CIMD da lista fechada, sem DCR) |
 | `GET /oauth/interacao/:uid`, `GET /oauth/keycloak/callback`, `POST /oauth/interacao/:uid/decisao` | login no IdP (`max_age=300`) e tela de consentimento, sempre |
 | `GET /readyz` | só o processo (rotas montadas, chaves carregadas); nunca depende da V2 |
 | `GET /healthz` | vivo; `?detalhe=1` testa a V2 e o IdP (503 se algum falhar) |
 | `GET /metrics` | Prometheus (não exposta na borda) |
+
+Limites em memória por pod: 30 req/min **por IP** só nas rotas de navegador (`/oauth/authorize`, `/oauth/interacao/*`,
+`/oauth/keycloak/callback`); `/oauth/token` e `/oauth/revoke` chegam dos servidores dos clientes de IA, por IPs
+compartilhados, e contam 10 req/min **por cliente + credencial** (refresh, código ou token a revogar, ou seja, um
+grant); `/mcp` conta por grant.
+
+Cabeçalho `Host` (proteção contra DNS rebinding): só o host de `MCP_PUBLIC_URL` e, no modo demonstração, também
+`localhost` e `127.0.0.1`; outro host recebe 421. `/healthz`, `/readyz` e `/metrics` não conferem o `Host`, porque as
+sondas e o coletor chamam pelo IP do pod.
+
+Auditoria: com a fila em memória cheia (1 000 linhas), a chamada nova é recusada com `ocupado` (`tentar_novamente`)
+antes de executar, em vez de descartar linha. Ferramenta com efeito grava `accepted` antes do efeito (espera o 201) e a
+linha final (`ok`, `replayed` ou `error`) com o mesmo `requestId`.
 
 ## Estrutura e quem mexe onde
 
@@ -105,7 +137,7 @@ Regras que valem para todos:
 
 1. `bun install --frozen-lockfile --ignore-scripts`;
 2. `gitleaks` com `.gitleaks.toml` no histórico e na árvore (`scripts/segredos.sh`);
-3. nomes proibidos (`scripts/nomes-proibidos.ts`: a lista guarda só hashes, para o arquivo público não citar nomes);
+3. nomes proibidos (`scripts/nomes-proibidos.ts`, lista privada; veja abaixo);
 4. `biome check`;
 5. `tsc --noEmit`;
 6. `vitest run`;
@@ -117,6 +149,17 @@ Regras que valem para todos:
 Entra depois: `@modelcontextprotocol/conformance` (P6).
 
 O `pre-commit` roda `gitleaks --staged` e os nomes proibidos no conteúdo preparado.
+
+### Nomes proibidos
+
+Nomes de parceiros comerciais não aparecem no repositório público, nem como hash (um hash sem sal de uma palavra se
+confirma por dicionário). A lista é privada: um nome ou expressão por linha, `#` comenta, sem diferença de maiúscula ou
+acento. O script lê o arquivo indicado em `NOMES_PROIBIDOS_ARQUIVO` (de preferência fora do repositório) ou, sem a
+variável, `.nomes-proibidos` na raiz do repositório (ignorado pelo git e pelo Docker).
+
+Sem lista, a checagem é **pulada com aviso** (quem clona o repositório não tem a lista). Com
+`NOMES_PROIBIDOS_OBRIGATORIO=1`, ou com `NOMES_PROIBIDOS_ARQUIVO` apontando para arquivo ausente ou vazio, a falta da
+lista é **erro**: o build de release roda assim, com a lista fornecida pelo repositório privado de infraestrutura.
 
 ### Drift da V2
 

@@ -1,6 +1,6 @@
 # gitleaks do resgata-mcp (repositório PÚBLICO). Regras padrão + regras próprias.
 # Roda no pre-commit (staged), no gate (histórico + árvore) e de novo no release.
-# Nomes de parceiros não ficam aqui (o arquivo é público): ver scripts/nomes-proibidos.ts.
+# Nomes de parceiros não ficam aqui (o arquivo é público): lista privada lida por scripts/nomes-proibidos.ts.
 
 title = "resgata-mcp"
 

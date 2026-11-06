@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { CompactEncrypt, compactDecrypt } from 'jose';
 import { ErroV2 } from '../v2/tipos.js';
-import { diaBrt } from './envelope.js';
 
 /** Validade do plano do inc. 1 (DESENHO §7.3). */
 export const PLANO_VALIDADE_S = 30 * 60;
@@ -11,7 +10,7 @@ export type ConteudoPlano = {
   grantId: string;
   /** Ferramenta que pode executar o plano. */
   ferramenta: string;
-  /** Argumentos canônicos do efeito (o que vai à V2). */
+  /** Argumentos canônicos do efeito (o que vai à V2) e o `dia` BRT da prévia, que só entra na chave. */
   args: Record<string, string>;
   repeticaoIntencional: boolean;
 };
@@ -58,13 +57,19 @@ export async function abrirPlano(
 /**
  * `Idempotency-Key` derivada do CONTEÚDO, não do plano (DESENHO §7.3): o mesmo pedido no mesmo dia (outro plano,
  * outras palavras, turno reenviado, dois planos em paralelo) cai na mesma chave e a V2 devolve o replay por 24 h.
+ * `dia` é o dia BRT da prévia, selado no plano: o mesmo plano executado depois da meia-noite mantém a chave.
  * `nonce` só com repetição intencional.
  */
-export function chaveIdempotencia(
-  p: { sub: string; ferramenta: string; userUuid: string; canal: string; templateId: string; nonce?: string },
-  agora: Date,
-): string {
-  const partes = ['mcp:v1', p.sub, p.ferramenta, p.userUuid, p.canal, p.templateId, diaBrt(agora)];
+export function chaveIdempotencia(p: {
+  sub: string;
+  ferramenta: string;
+  userUuid: string;
+  canal: string;
+  templateId: string;
+  dia: string;
+  nonce?: string;
+}): string {
+  const partes = ['mcp:v1', p.sub, p.ferramenta, p.userUuid, p.canal, p.templateId, p.dia];
   if (p.nonce) partes.push(p.nonce);
   return createHash('sha256').update(partes.join('|')).digest('base64url');
 }
