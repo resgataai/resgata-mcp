@@ -1,0 +1,6 @@
+#!/bin/sh
+# Segredos e nomes proibidos no que vai entrar no commit.
+set -eu
+command -v gitleaks >/dev/null 2>&1 || { echo "pre-commit: gitleaks não encontrado" >&2; exit 1; }
+gitleaks git --pre-commit --staged --no-banner --redact -c .gitleaks.toml .
+bun scripts/nomes-proibidos.ts --staged

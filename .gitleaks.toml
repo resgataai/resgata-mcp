@@ -1,0 +1,59 @@
+# gitleaks do resgata-mcp (repositório PÚBLICO). Regras padrão + regras próprias.
+# Roda no pre-commit (staged), no gate (histórico + árvore) e de novo no release.
+# Nomes de parceiros não ficam aqui (o arquivo é público): ver scripts/nomes-proibidos.ts.
+
+title = "resgata-mcp"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Arquivos gerados e dependências"
+paths = [
+  '''(^|/)bun\.lock$''',
+  '''(^|/)node_modules/''',
+  '''(^|/)dist/''',
+]
+
+[[rules]]
+id = "resgata-cpf"
+description = "CPF formatado ou não; só o prefixo sintético 000.000. é permitido"
+regex = '''\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b'''
+  [[rules.allowlists]]
+  regexTarget = "match"
+  regexes = ['''^000\.?000\.?''']
+
+[[rules]]
+id = "resgata-host-cluster"
+description = "Endereço interno de cluster Kubernetes"
+regex = '''(?i)\.svc\.cluster\.local\b'''
+keywords = ["cluster.local"]
+
+[[rules]]
+id = "resgata-host-gcp-interno"
+description = "Host interno de VM ou serviço do GCP"
+regex = '''(?i)\b[a-z0-9-]+\.c\.[a-z0-9-]+\.internal\b'''
+keywords = [".internal"]
+
+[[rules]]
+id = "resgata-ip-privado"
+description = "IP privado (10/8, 172.16/12, 192.168/16)"
+regex = '''\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b'''
+
+[[rules]]
+id = "resgata-conta-de-servico"
+description = "Conta de serviço do GCP"
+regex = '''(?i)\b[a-z0-9-]+@[a-z0-9-]+\.iam\.gserviceaccount\.com\b'''
+keywords = ["gserviceaccount"]
+
+[[rules]]
+id = "resgata-age-recipient"
+description = "Recipient age (chave de cifra do SOPS)"
+regex = '''\bage1[0-9a-z]{58}\b'''
+keywords = ["age1"]
+
+[[rules]]
+id = "resgata-artifact-registry"
+description = "Endereço de registro de imagens do GCP"
+regex = '''(?i)\b[a-z0-9-]+-docker\.pkg\.dev/'''
+keywords = ["docker.pkg.dev"]

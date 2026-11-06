@@ -1,0 +1,4 @@
+#!/bin/sh
+# Gate completo antes de qualquer push.
+set -eu
+exec sh scripts/gate.sh

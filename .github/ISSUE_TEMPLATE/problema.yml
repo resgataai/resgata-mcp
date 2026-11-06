@@ -1,0 +1,32 @@
+name: Problema ou sugestão
+description: Algo não funciona como o guia diz, ou uma ideia para o MCP.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Não cole dados de clientes** (CPF, nome, telefone, e-mail, conversas, valores) nem tokens, senhas ou
+        prints com esses dados. Issues são públicas. Para reproduzir, use o modo demonstração (`bun run dev:demo`),
+        que só tem dados sintéticos. Vulnerabilidade de segurança vai pelo relato privado, nunca por aqui.
+  - type: checkboxes
+    id: sem-dados
+    attributes:
+      label: Confirmação
+      options:
+        - label: Este relato não contém dados de clientes, tokens, senhas nem endereços internos.
+          required: true
+  - type: textarea
+    id: descricao
+    attributes:
+      label: O que aconteceu
+      description: O que você fez, o que esperava e o que viu.
+    validations:
+      required: true
+  - type: input
+    id: cliente
+    attributes:
+      label: Cliente de IA e versão
+      placeholder: "Claude Code 2.x, Codex 0.x, conector do Claude.ai…"
+  - type: input
+    id: versao
+    attributes:
+      label: Versão (SHA) do resgata-mcp

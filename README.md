@@ -91,7 +91,9 @@ verdade, e a segurança do serviço não depende de o código ser fechado.
 Antes de cada envio ao repositório roda uma verificação automática de segredos e de dados pessoais (gitleaks com
 regras próprias).
 
+Para desenvolver ou testar localmente com dados sintéticos: [docs/DESENVOLVIMENTO.md](docs/DESENVOLVIMENTO.md).
+
 ## Direitos
 
 Copyright (c) 2026 Resgata.ai. Todos os direitos reservados. O código é público para transparência e para facilitar a
-instalação. Isso não concede licença de uso, cópia ou redistribuição.
+instalação. Isso não concede licença de uso, cópia ou redistribuição. Texto completo em [LICENSE](LICENSE).

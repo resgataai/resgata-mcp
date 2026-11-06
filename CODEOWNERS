@@ -1,0 +1,3 @@
+# Toda mudança precisa de revisão do dono. PR externo nunca roda na máquina do dono:
+# o diff é lido e a mudança recriada numa branch própria.
+* @anthony-resgata
