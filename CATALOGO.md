@@ -1,9 +1,13 @@
 # Catálogo de ferramentas
 
 > **Nenhuma ferramenta está no ar hoje (06/11/2026).** A coluna "Estado" diz em qual incremento cada uma entra:
-> **Inc. 1 — em construção**; **Inc. 2, 3 e 4 — planejadas**. Quando uma ferramenta for liberada, o estado muda para
-> **Disponível** com a data. Dentro do cliente de IA, pergunte "o que você consegue fazer na Resgata?" para ver só o
-> que está disponível para o seu perfil.
+> **Inc. 1 — pronta no modo demonstração** (responde com dados sintéticos em `bun run dev:demo`, ver
+> [INSTALAR.md](INSTALAR.md) seção 8, e aguarda a liberação); **Inc. 2, 3 e 4 — planejadas**. Quando uma ferramenta for
+> liberada, o estado muda para **Disponível** com a data. Dentro do cliente de IA, pergunte "o que você consegue fazer
+> na Resgata?" para ver só o que está disponível para o seu perfil.
+>
+> Duas ferramentas do incremento 1 nascem desligadas: `contato_executar` (não aparece até os envios serem liberados) e
+> `atendimento_mensagens` (responde "indisponível" até a decisão da Resgata sobre dados em clientes de IA).
 
 Legenda do tipo:
 - **Leitura:** só consulta.
@@ -19,19 +23,19 @@ indicadores e agregados; `read.clientes` = registros de clientes e conversas. Da
 
 | Ferramenta | O que faz | Tipo | Permissão | Estado |
 |---|---|---|---|---|
-| `resgata_quem_sou` | Seu nome, perfil, permissões e validade da autorização | Leitura | `acesso` | Inc. 1 — em construção |
-| `resgata_capacidades` | Busca no catálogo: o que você pode fazer, o que não pode e por quê, com exemplos | Leitura | qualquer | Inc. 1 — em construção |
-| `auditoria_minhas_acoes` | O que você fez pelo MCP, por período (só as suas ações) | Leitura | `acesso` | Inc. 1 — em construção |
+| `resgata_quem_sou` | Seu nome, perfil, permissões e validade da autorização | Leitura | `acesso` | Inc. 1 — pronta no modo demonstração |
+| `resgata_capacidades` | Busca no catálogo: o que você pode fazer, o que não pode e por quê, com exemplos | Leitura | qualquer | Inc. 1 — pronta no modo demonstração |
+| `auditoria_minhas_acoes` | O que você fez pelo MCP, por período (só as suas ações) | Leitura | `acesso` | Inc. 1 — pronta no modo demonstração |
 | `resgata_novidades` | O que mudou desde a última conversa: execuções concluídas, falhas, alertas | Leitura | `acesso` | Inc. 3 — planejada |
 
 ## Clientes e jornada
 
 | Ferramenta | O que faz | Tipo | Permissão | Estado |
 |---|---|---|---|---|
-| `clientes_buscar` | Encontra cliente por CPF, e-mail ou telefone; com homônimos, pede o dado mínimo em vez de escolher | Leitura | `read.clientes` | Inc. 1 — em construção (busca por nome no Inc. 2) |
-| `cliente_dossie` | Resumo do cliente: cadastro, propostas, finanças, conversas, comunicações, possíveis duplicidades | Leitura | `read.clientes` | Inc. 1 — em construção |
-| `cliente_linha_do_tempo` | Eventos do cliente em ordem, com fonte e horário | Leitura | `read.clientes` | Inc. 1 — em construção |
-| `jornada_listar` | A lista da página Jornada do painel, com os mesmos filtros (período, produto, resultado, erro, status, canal, origem) | Leitura | `read.clientes` | Inc. 1 — em construção |
+| `clientes_buscar` | Encontra cliente por CPF, e-mail ou telefone; com homônimos, pede o dado mínimo em vez de escolher | Leitura | `read.clientes` | Inc. 1 — pronta no modo demonstração (busca por nome no Inc. 2) |
+| `cliente_dossie` | Resumo do cliente: cadastro, propostas, finanças, conversas, comunicações, possíveis duplicidades | Leitura | `read.clientes` | Inc. 1 — pronta no modo demonstração |
+| `cliente_linha_do_tempo` | Eventos do cliente em ordem, com fonte e horário | Leitura | `read.clientes` | Inc. 1 — pronta no modo demonstração |
+| `jornada_listar` | A lista da página Jornada do painel, com os mesmos filtros (período, produto, resultado, erro, status, canal, origem) | Leitura | `read.clientes` | Inc. 1 — pronta no modo demonstração |
 | `cliente_jornada` | De onde o cliente veio, até onde chegou, tentativas, erros, o que foi dito a ele; lacunas explícitas | Leitura | `read.clientes` | Inc. 1 em parte; completa no Inc. 2 |
 | `cliente_o_que_foi_feito` | Tudo o que campanhas, réguas, cobrança, Agente Rê e o MCP fizeram com o cliente | Leitura | `read.clientes` | Inc. 3 — planejada |
 | `cliente_proxima_acao` | Próxima ação sugerida, com justificativa e restrições (marcada como sugestão de IA) | Leitura | `read.clientes` | Inc. 4 — planejada |
@@ -41,17 +45,17 @@ indicadores e agregados; `read.clientes` = registros de clientes e conversas. Da
 
 | Ferramenta | O que faz | Tipo | Permissão | Estado |
 |---|---|---|---|---|
-| `propostas_buscar` | Busca com filtros, facetas e paginação | Leitura | `read.clientes` | Inc. 1 — em construção |
-| `proposta_detalhe` | Situação, provedor, valores e link para o painel | Leitura | `read.clientes` | Inc. 1 — em construção |
+| `propostas_buscar` | Busca com filtros, facetas e paginação | Leitura | `read.clientes` | Inc. 1 — pronta no modo demonstração |
+| `proposta_detalhe` | Situação, provedor, valores e link para o painel | Leitura | `read.clientes` | Inc. 1 — pronta no modo demonstração |
 
 ## Indicadores e relatórios
 
 | Ferramenta | O que faz | Tipo | Permissão | Estado |
 |---|---|---|---|---|
-| `bi_hoje` | Painel do dia | Leitura | `read.bi` | Inc. 1 — em construção |
-| `bi_conversao` | Funil, conversão por canal e aquisição, gargalos | Leitura | `read.bi` | Inc. 1 — em construção |
-| `bi_canais_custos` | Custo e retorno por canal; gasto de anúncios aparece como lacuna enquanto não houver integração | Leitura | `read.bi` | Inc. 1 — em construção (custo por anúncio no Inc. 4) |
-| `bi_desembolsos` | Volume e valor desembolsados no período | Leitura | `read.bi` | Inc. 1 — em construção |
+| `bi_hoje` | Painel do dia | Leitura | `read.bi` | Inc. 1 — pronta no modo demonstração |
+| `bi_conversao` | Funil, conversão por canal e aquisição, gargalos | Leitura | `read.bi` | Inc. 1 — pronta no modo demonstração |
+| `bi_canais_custos` | Custo e retorno por canal; gasto de anúncios aparece como lacuna enquanto não houver integração | Leitura | `read.bi` | Inc. 1 — pronta no modo demonstração (custo por anúncio no Inc. 4) |
+| `bi_desembolsos` | Volume e valor desembolsados no período | Leitura | `read.bi` | Inc. 1 — pronta no modo demonstração |
 | `bi_comparar_periodos` | Comparação entre períodos e segmentos, com definições | Leitura | `read.bi` | Inc. 4 — planejada |
 | `bi_insights_ia` | Insights gerados por IA, separados dos fatos | Leitura | `read.bi` | Inc. 4 — planejada |
 | `relatorio_salvar` / `relatorio_executar` / `relatorio_agendar` | Filtros salvos e relatórios recorrentes | Escrita interna | `read.bi` (agendar: `automation`) | Inc. 4 — planejada |
@@ -61,12 +65,12 @@ indicadores e agregados; `read.clientes` = registros de clientes e conversas. Da
 
 | Ferramenta | O que faz | Tipo | Permissão | Estado |
 |---|---|---|---|---|
-| `audiencias_listar` / `audiencia_detalhe` | Audiências existentes e sua definição | Leitura | `read.bi` | Inc. 1 — em construção |
+| `audiencias_listar` / `audiencia_detalhe` | Audiências existentes e sua definição | Leitura | `read.bi` | Inc. 1 — pronta no modo demonstração |
 | `audiencias_campos` / `audiencias_previa` | Campos disponíveis e prévia (quantidade e exclusões) de uma audiência descrita em português | Leitura | `read.bi` | Inc. 3 — planejada |
 | `audiencias_criar` / `audiencias_editar` | Criar ou editar audiência | Escrita interna | `campaigns` | Inc. 3 — planejada |
 | `audiencia_por_que_entrou` | Por que um cliente entrou numa audiência | Leitura | `read.clientes` | Inc. 4 — planejada |
 | `selecao_operacional_previa` / `selecao_operacional_salvar` | "Clientes sem atendimento ontem", "clientes que receberam o erro X": encontrados, elegíveis, excluídos e motivos | Leitura / escrita interna | `read.clientes` / `campaigns` | Inc. 3 — planejada |
-| `campanhas_listar` / `campanha_resultados` | Campanhas e resultados (entrega, falha, rejeições, economia) | Leitura | `read.bi` | Inc. 1 — em construção |
+| `campanhas_listar` / `campanha_resultados` | Campanhas e resultados (entrega, falha, rejeições, economia) | Leitura | `read.bi` | Inc. 1 — pronta no modo demonstração |
 | `campanha_planejar` / `campanha_executar` | Criar e disparar ou agendar campanha | Efeito externo | `campaigns` | Inc. 3 — planejada |
 | `campanha_controlar` | Pausar, retomar, cancelar, reagendar | Efeito externo | `campaigns` | Inc. 3 — planejada |
 
@@ -74,18 +78,18 @@ indicadores e agregados; `read.clientes` = registros de clientes e conversas. Da
 
 | Ferramenta | O que faz | Tipo | Permissão | Estado |
 |---|---|---|---|---|
-| `modelos_listar` | Modelos aprovados por canal, com variáveis e prévia | Leitura | `read.bi` | Inc. 1 — em construção (WhatsApp no Inc. 2) |
+| `modelos_listar` | Modelos aprovados por canal, com variáveis e prévia | Leitura | `read.bi` | Inc. 1 — pronta no modo demonstração (WhatsApp no Inc. 2) |
 | `contato_planejar` / `contato_executar` | "Mande o modelo X para o cliente Y" e "chame o cliente X e fale Y"; envio direto ou atendimento conduzido pela Agente Rê | Efeito externo | `contact` (voz: `voice`) | Inc. 1: e-mail por modelo. Inc. 2: WhatsApp, SMS, texto e Agente Rê. Inc. 4: voz |
-| `contato_status` | Situação do envio: aceito, enviado, entregue, respondido, concluído ou impedido (com motivo) | Leitura | `read.clientes` | Inc. 1 — em construção (estados completos no Inc. 2) |
+| `contato_status` | Situação do envio: aceito, enviado, entregue, respondido, concluído ou impedido (com motivo) | Leitura | `read.clientes` | Inc. 1 — pronta no modo demonstração (estados completos no Inc. 2) |
 | `contato_cancelar` | Cancela o que ainda não saiu | Efeito externo | `contact` | Inc. 2 — planejada |
 
 ## Atendimento (Chatwoot e Agente Rê)
 
 | Ferramenta | O que faz | Tipo | Permissão | Estado |
 |---|---|---|---|---|
-| `atendimento_conversas` | Conversas de um cliente já identificado ou da fila: status, caixa, responsável, rótulos (sem busca de texto) | Leitura | `read.clientes` | Inc. 1 — em construção |
-| `atendimento_mensagens` | Mensagens da conversa (marcadas como conteúdo não confiável); liberada só após a decisão da Resgata sobre dados em clientes de IA | Leitura | `read.clientes` | Inc. 1 — em construção |
-| `atendimento_fila` | Quantas conversas pedem atenção | Leitura | `read.clientes` | Inc. 1 — em construção |
+| `atendimento_conversas` | Conversas de um cliente já identificado ou da fila: status, caixa, responsável, rótulos (sem busca de texto) | Leitura | `read.clientes` | Inc. 1 — pronta no modo demonstração |
+| `atendimento_mensagens` | Mensagens da conversa (marcadas como conteúdo não confiável); liberada só após a decisão da Resgata sobre dados em clientes de IA | Leitura | `read.clientes` | Inc. 1 — pronta no modo demonstração |
+| `atendimento_fila` | Quantas conversas pedem atenção | Leitura | `read.clientes` | Inc. 1 — pronta no modo demonstração |
 | `atendimento_acao_planejar` / `atendimento_acao_executar` | Atribuir, nota interna, rótulo, transferir IA ↔ humano, pausar ou retomar a IA | Efeito no atendimento | `attendance` | Inc. 2 — planejada |
 
 ## Cobrança
@@ -110,7 +114,7 @@ indicadores e agregados; `read.clientes` = registros de clientes e conversas. Da
 
 | Ferramenta | O que faz | Tipo | Permissão | Estado |
 |---|---|---|---|---|
-| `diagnostico_saude` | Saúde da plataforma, do atendimento e dos provedores bancários | Leitura | `read.bi` | Inc. 1 — em construção |
+| `diagnostico_saude` | Saúde da plataforma, do atendimento e dos provedores bancários | Leitura | `read.bi` | Inc. 1 — pronta no modo demonstração |
 | `diagnostico_provedor` | "O que está acontecendo no provedor X?": situação, taxa de erro, latência e uma classificação com volume e confiança ("indeterminada" quando há poucos dados); resolve apelidos e pergunta antes de investigar; sem busca por texto ou CPF | Leitura | `read.bi` | Inc. 1 básico; completo no Inc. 4 (por operação, último sucesso, afetados, causa provável) |
 | `diagnostico_cpf` | "Por que este CPF não simulou?": tentativas, etapa, provedor, erro técnico × negócio × dado, o que o cliente viu | Leitura | `diagnostics.cpf` | Inc. 4 — planejada |
 | `diagnostico_monitorar` / `diagnostico_incidentes` | Avisar quando um provedor degradar ou normalizar; histórico | Escrita interna / leitura | `automation` / `read.bi` | Inc. 4 — planejada |

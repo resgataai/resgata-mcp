@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+.git
+.githooks
+.github
+.env
+.env.*
+*.log
+test
+docs
+.nomes-proibidos
