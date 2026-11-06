@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
-import { requireBearerAuth } from '@modelcontextprotocol/express';
-import type { McpHttpHandler } from '@modelcontextprotocol/server';
+import {
+  type AuthInfo,
+  bearerAuthChallengeResponse,
+  type McpHttpHandler,
+  verifyBearerToken,
+} from '@modelcontextprotocol/server';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { Counter, collectDefaultMetrics, Registry } from 'prom-client';
 import type { Limites } from './limites.js';
@@ -31,12 +35,14 @@ export type DependenciasServidor = {
   dependencias: readonly Dependencia[];
   /** Chaves e configuração carregadas. */
   chavesCarregadas: boolean;
+  /** Registro de métricas compartilhado com o servidor de autorização. */
+  registro?: Registry;
 };
 
 const ID_VALIDO = /^[A-Za-z0-9._-]{8,64}$/;
 
 export function criarApp(d: DependenciasServidor) {
-  const registro = new Registry();
+  const registro = d.registro ?? new Registry();
   collectDefaultMetrics({ register: registro });
   const http = new Counter({
     name: 'mcp_http_requests_total',
@@ -130,15 +136,28 @@ export function criarApp(d: DependenciasServidor) {
 
   app.use(d.autorizacao.rotas);
 
+  const bearer = {
+    verifier: d.autorizacao.verificador,
+    resourceMetadataUrl: urlPrm,
+    expectedResource: new URL(d.recurso),
+  };
   app.all(
     '/mcp',
-    requireBearerAuth({
-      verifier: d.autorizacao.verificador,
-      resourceMetadataUrl: urlPrm,
-      expectedResource: new URL(d.recurso),
-    }),
-    (req, res, next) => {
-      const grantId = extraDoToken(req.auth?.extra)?.grantId;
+    async (req, res, next) => {
+      try {
+        res.locals.auth = await verifyBearerToken(req.headers.authorization, bearer);
+        return next();
+      } catch (e) {
+        // O 401 anuncia o escopo mínimo (DESENHO §5.1) sem exigi-lo de todo token, o que daria 403 via requiredScopes.
+        const r = bearerAuthChallengeResponse(e, { ...bearer, requiredScopes: [ESCOPO_MINIMO] });
+        r.headers.forEach((v, k) => {
+          res.setHeader(k, v);
+        });
+        res.status(r.status).send(Buffer.from(await r.arrayBuffer()));
+      }
+    },
+    (_req, res, next) => {
+      const grantId = extraDoToken((res.locals.auth as AuthInfo).extra)?.grantId;
       const r = d.limites.porGrant.consumir(grantId ?? 'sem-grant');
       if (r.ok) return next();
       limitados.inc({ limite: 'grant' });
@@ -148,7 +167,10 @@ export function criarApp(d: DependenciasServidor) {
     express.json({ limit: '1mb' }),
     async (req, res, next) => {
       try {
-        await responder(res, await d.mcp.fetch(paraRequest(req), { authInfo: req.auth, parsedBody: req.body }));
+        await responder(
+          res,
+          await d.mcp.fetch(paraRequest(req), { authInfo: res.locals.auth as AuthInfo, parsedBody: req.body }),
+        );
       } catch (e) {
         next(e);
       }
