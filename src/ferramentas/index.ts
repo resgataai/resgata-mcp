@@ -6,9 +6,10 @@ import { FERRAMENTAS_CLIENTES } from './clientes.js';
 import { FERRAMENTAS_CONTA } from './conta.js';
 import { FERRAMENTAS_CONTATO } from './contato.js';
 import { FERRAMENTAS_DIAGNOSTICO } from './diagnostico.js';
+import { FERRAMENTAS_DIAGNOSTICO_CLIENTE } from './diagnostico-cliente.js';
 import { FERRAMENTAS_PROPOSTAS } from './propostas.js';
 
-/** Catálogo do incremento 1 (27 ferramentas; PLANO §3.1 P5). Um arquivo por domínio. */
+/** Catálogo do incremento 1 (28 ferramentas; PLANO §3.1 P5). Um arquivo por domínio. */
 export const FERRAMENTAS: readonly Ferramenta[] = [
   ...FERRAMENTAS_CONTA,
   ...FERRAMENTAS_CLIENTES,
@@ -18,4 +19,5 @@ export const FERRAMENTAS: readonly Ferramenta[] = [
   ...FERRAMENTAS_CONTATO,
   ...FERRAMENTAS_ATENDIMENTO,
   ...FERRAMENTAS_DIAGNOSTICO,
+  ...FERRAMENTAS_DIAGNOSTICO_CLIENTE,
 ];

@@ -1,13 +1,8 @@
 # Catálogo de ferramentas
 
-> **Nenhuma ferramenta está no ar hoje (06/11/2026).** A coluna "Estado" diz em qual incremento cada uma entra:
-> **Inc. 1 — pronta no modo demonstração** (responde com dados sintéticos em `bun run dev:demo`, ver
-> [INSTALAR.md](INSTALAR.md) seção 8, e aguarda a liberação); **Inc. 2, 3 e 4 — planejadas**. Quando uma ferramenta for
-> liberada, o estado muda para **Disponível** com a data. Dentro do cliente de IA, pergunte "o que você consegue fazer
-> na Resgata?" para ver só o que está disponível para o seu perfil.
+> **Modo remoto ainda não liberado (06/11/2026).** As ferramentas implementadas do incremento 1 também podem ser usadas no [modo local autorizado](docs/LOCAL.md), conforme permissões e gates. O diagnóstico técnico por cliente exige `read.clientes`, `diagnostics.cpf` e `pii`. Os incrementos futuros continuam planejados. Consulte `resgata_capacidades` para a disponibilidade do seu perfil.
 >
-> Duas ferramentas do incremento 1 nascem desligadas: `contato_executar` (não aparece até os envios serem liberados) e
-> `atendimento_mensagens` (responde "indisponível" até a decisão da Resgata sobre dados em clientes de IA).
+> Transcrições em `atendimento_mensagens` continuam condicionadas à liberação específica. Envios exigem prévia, permissão e gates da plataforma; não são liberados pela consulta técnica.
 
 Legenda do tipo:
 - **Leitura:** só consulta.
@@ -116,7 +111,7 @@ indicadores e agregados; `read.clientes` = registros de clientes e conversas. Da
 |---|---|---|---|---|
 | `diagnostico_saude` | Saúde da plataforma, do atendimento e dos provedores bancários | Leitura | `read.bi` | Inc. 1 — pronta no modo demonstração |
 | `diagnostico_provedor` | "O que está acontecendo no provedor X?": situação, taxa de erro, latência e uma classificação com volume e confiança ("indeterminada" quando há poucos dados); resolve apelidos e pergunta antes de investigar; sem busca por texto ou CPF | Leitura | `read.bi` | Inc. 1 básico; completo no Inc. 4 (por operação, último sucesso, afetados, causa provável) |
-| `diagnostico_cpf` | "Por que este CPF não simulou?": tentativas, etapa, provedor, erro técnico × negócio × dado, o que o cliente viu | Leitura | `diagnostics.cpf` | Inc. 4 — planejada |
+| `diagnostico_cpf` | Resposta registrada (JSON/texto), erro, HTTP, operação, horário, evento e grupo/job por CPF ou UUID. Credenciais removidas; fonte limitada aos 200 eventos recentes. Não prova causa de abandono | Leitura | `read.clientes` + `diagnostics.cpf` + `pii` | Disponível no modo local autorizado; análise completa da jornada continua incremental |
 | `diagnostico_monitorar` / `diagnostico_incidentes` | Avisar quando um provedor degradar ou normalizar; histórico | Escrita interna / leitura | `automation` / `read.bi` | Inc. 4 — planejada |
 | `reprocessar_planejar` / `reprocessar_executar` | Reprocessar eventos tecnicamente elegíveis | Efeito externo | `reprocess` | Inc. 4 — planejada |
 
@@ -143,4 +138,4 @@ automática de cadastros e qualquer ação disparada por conteúdo recebido de c
   resultados." (Inc. 3)
 - "Identifique os abandonos de ontem, acione os elegíveis e acompanhe por três dias." (Inc. 3)
 - "Por que o provedor bancário parou de simular hoje?" (Inc. 1 básico; completo no Inc. 4)
-- "Por que este CPF não conseguiu simular?" (Inc. 4)
+- "Mostre a resposta técnica registrada do provedor para este CPF." (modo local autorizado)

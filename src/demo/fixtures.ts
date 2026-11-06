@@ -225,7 +225,10 @@ export const FIXTURES: Record<string, Fixture> = {
           error: true,
           occurredAt: AGORA,
           source: 'APP',
-          details: { technical: [{ label: 'x', value: 'nunca sai' }] },
+          details: {
+            technical: [{ label: 'HTTP do provedor', value: '422' }],
+            request: [{ label: 'Campo privado', value: 'nunca sai' }],
+          },
         },
       ],
     }),
